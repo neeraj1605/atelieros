@@ -1,0 +1,973 @@
+/* AtelierFlow - View Specific Styles */
+
+/* ==========================================================================
+   1. OVERVIEW & LIFECYCLE MAP
+   ========================================================================== */
+.overview-hero {
+  background: linear-gradient(135deg, rgba(28, 30, 38, 0.9) 0%, rgba(20, 22, 27, 0.95) 100%);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.overview-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(197, 168, 128, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 32px;
+  align-items: center;
+}
+
+.hero-meta-title {
+  font-family: var(--font-serif);
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.hero-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
+.hero-description {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  max-width: 680px;
+  line-height: 1.6;
+}
+
+.hero-stats-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+
+.hero-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.hero-stat-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Lifecycle Interactive Map Pipeline */
+.lifecycle-flow-card {
+  margin-bottom: 28px;
+}
+
+.lifecycle-stages-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  position: relative;
+  margin-top: 20px;
+}
+
+.stage-step-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.stage-step-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-primary);
+  box-shadow: var(--shadow-glow);
+}
+
+.stage-step-card.active {
+  border-color: var(--accent-primary);
+  background: var(--bg-surface-hover);
+}
+
+.stage-step-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent-primary);
+  width: var(--step-progress, 0%);
+  transition: width 0.6s ease;
+}
+
+.stage-num {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-accent);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.stage-name {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.stage-subtext {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.stage-progress-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-accent);
+}
+
+/* Metric KPI Cards Grid */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.kpi-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.kpi-sub {
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   2. PRODUCT DISCOVERY & FF&E STYLES
+   ========================================================================== */
+.catalog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.search-input-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 380px;
+}
+
+.search-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 9px 14px 9px 36px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.search-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.catalog-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+/* Product Cards Grid */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.product-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.product-thumb-wrap {
+  position: relative;
+  width: 100%;
+  height: 210px;
+  background: #18191E;
+  overflow: hidden;
+}
+
+.product-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-smooth);
+}
+
+.product-card:hover .product-thumb {
+  transform: scale(1.05);
+}
+
+.product-category-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(14, 15, 18, 0.85);
+  backdrop-filter: blur(8px);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.product-status-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.product-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.product-vendor {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-accent);
+  margin-bottom: 4px;
+}
+
+.product-name {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.product-specs-compact {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.product-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  margin-bottom: 14px;
+}
+
+.client-price-tag {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.trade-cost-tag {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.product-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Moodboard Studio Canvas */
+.moodboard-workspace {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+.moodboard-canvas-container {
+  background: #111216;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  position: relative;
+  height: 640px;
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.moodboard-canvas-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.moodboard-canvas-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  cursor: grab;
+}
+
+.moodboard-canvas-inner:active {
+  cursor: grabbing;
+}
+
+.moodboard-item-elem {
+  position: absolute;
+  user-select: none;
+  cursor: move;
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  border: 2px solid transparent;
+}
+
+.moodboard-item-elem:hover {
+  border-color: var(--accent-primary);
+}
+
+.moodboard-item-elem.selected {
+  border-color: var(--accent-gold);
+  box-shadow: var(--shadow-glow);
+}
+
+.moodboard-item-elem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.moodboard-palette-strip {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.palette-swatch-box {
+  flex: 1;
+  min-width: 90px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.swatch-color-pill {
+  width: 100%;
+  height: 32px;
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.swatch-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.swatch-hex {
+  font-size: 0.68rem;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   3. DESIGN & SPATIAL MAPPING STYLES
+   ========================================================================== */
+.design-view-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 24px;
+}
+
+.floorplan-viewport {
+  background: #121419;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  position: relative;
+  height: 680px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.floorplan-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+}
+
+.floorplan-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.room-inspector-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 680px;
+  overflow-y: auto;
+}
+
+.room-metric-box {
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+/* 3D Concept Renders Gallery */
+.renders-strip {
+  margin-top: 32px;
+}
+
+.render-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 24px;
+}
+
+.render-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.render-image-wrap {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  background: #18191E;
+  cursor: crosshair;
+}
+
+.render-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.render-pin-drop {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--accent-gold);
+  color: #121316;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.8);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.render-pin-drop:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.render-comments-box {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.render-comment-item {
+  background: var(--bg-surface-elevated);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+/* ==========================================================================
+   4. COMMERCIAL & PROCUREMENT (BOQ) STYLES
+   ========================================================================== */
+.boq-table-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: 28px;
+}
+
+.boq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.boq-table th {
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-medium);
+  white-space: nowrap;
+}
+
+.boq-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.boq-table tr:hover td {
+  background: var(--bg-surface-hover);
+}
+
+.boq-item-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.boq-item-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: #202229;
+}
+
+.boq-qty-input, .boq-markup-input {
+  width: 60px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  border-radius: var(--radius-xs);
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.boq-qty-input:focus, .boq-markup-input:focus {
+  border-color: var(--accent-primary);
+}
+
+/* Spec Sheet / Cut Sheet Modal Content */
+.spec-sheet-container {
+  padding: 32px;
+  background: #FFF;
+  color: #121316;
+  font-family: var(--font-sans);
+}
+
+.spec-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #121316;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+}
+
+.spec-sheet-title {
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #121316;
+}
+
+.spec-sheet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-bottom: 24px;
+}
+
+.spec-sheet-image {
+  width: 100%;
+  height: 320px;
+  object-fit: cover;
+  border: 1px solid #E5E7EB;
+}
+
+.spec-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.spec-detail-table th {
+  text-align: left;
+  padding: 8px 0;
+  color: #6B7280;
+  border-bottom: 1px solid #E5E7EB;
+  width: 40%;
+}
+
+.spec-detail-table td {
+  padding: 8px 0;
+  font-weight: 500;
+  color: #111827;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+/* ==========================================================================
+   5. PROJECT MANAGEMENT (GANTT, KANBAN, SNAGS)
+   ========================================================================== */
+/* Interactive Gantt Timeline */
+.gantt-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-bottom: 28px;
+  overflow-x: auto;
+}
+
+.gantt-phase-row {
+  display: grid;
+  grid-template-columns: 240px 1fr 120px;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.gantt-phase-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gantt-phase-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.gantt-phase-dates {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.gantt-bar-track {
+  width: 100%;
+  height: 24px;
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-full);
+  position: relative;
+  overflow: hidden;
+}
+
+.gantt-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #C5A880 0%, #D4AF37 100%);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #121316;
+  transition: width 0.4s ease;
+}
+
+/* Multi-Trade Kanban Board */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+  align-items: start;
+}
+
+.kanban-column {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 480px;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.kanban-col-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.kanban-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.kanban-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  cursor: grab;
+  transition: all var(--transition-fast);
+}
+
+.kanban-card:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.kanban-card-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* Interactive Snagging List */
+.snags-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+.snag-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.snag-card-header {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface-elevated);
+}
+
+.snag-body {
+  padding: 18px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.snag-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.snag-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.snag-footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+}
+
+/* White-Glove Handover Checklist & Signoff */
+.handover-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 28px;
+}
+
+.signature-pad-box {
+  background: #0B0C0E;
+  border: 1px dashed var(--border-accent);
+  border-radius: var(--radius-sm);
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: crosshair;
+  position: relative;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: 100%;
+}
