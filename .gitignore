@@ -17,5 +17,10 @@ Thumbs.db
 # Node (not used by the static app; reserved for the future backend)
 node_modules/
 
+# Cloudflare Worker local state + secrets
+.wrangler/
+.dev.vars
+worker/.wrangler/
+
 # Kilo agent local state / plans
 .kilo/

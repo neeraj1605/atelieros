@@ -1,11 +1,12 @@
 /* ============================================================
-   Planex AI — Chat + Upload Module
+   Planex AI — Chat + Upload Module (hosted Gemini + offline fallback)
    ============================================================ */
 window.PlanexModules = window.PlanexModules || {};
 
 window.PlanexModules.PlanexAI = (function () {
   let pending = [];      // staged attachments {id,name,kind,dataUrl,size}
   let typing = false;
+  let streaming = false;
 
   function ic(name) { return window.PlanexIcons.get(name); }
   function store() { return window.PlanexStore; }
@@ -14,6 +15,18 @@ window.PlanexModules.PlanexAI = (function () {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function hosted() {
+    return window.PlanexAIClient && window.PlanexAIClient.isEnabled();
+  }
+
+  function nowTime() {
+    return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function brainLabel() {
+    return hosted() ? 'Online • Gemini (hosted)' : 'Online • Offline assistant';
   }
 
   function render(container) {
@@ -38,9 +51,10 @@ window.PlanexModules.PlanexAI = (function () {
             <div class="chat-avatar">${ic('sparkles')}</div>
             <div>
               <div class="chat-head-name">Planex AI Assistant</div>
-              <div class="chat-head-status"><span class="status-pulse"></span> Online • Interior Design Expert</div>
+              <div class="chat-head-status"><span class="status-pulse"></span> ${brainLabel()}</div>
             </div>
             <div class="chat-head-actions">
+              <span class="badge ${hosted() ? 'badge-success' : 'badge-neutral'}" title="Assistant mode">${hosted() ? 'Gemini' : 'Offline'}</span>
               <button class="icon-btn" id="ai-brief" title="View project brief">${ic('docket')}</button>
             </div>
           </div>
@@ -103,12 +117,15 @@ window.PlanexModules.PlanexAI = (function () {
 
     container.querySelector('#ai-brief').addEventListener('click', showBrief);
 
-    // delegation for suggestion buttons
     container.addEventListener('click', (e) => {
       const sug = e.target.closest('[data-suggest]');
-      if (sug) { input.value = sug.getAttribute('data-suggest'); submit(); }
+      if (sug) { input.value = sug.getAttribute('data-suggest'); submit(); return; }
       const img = e.target.closest('[data-lightbox]');
-      if (img) openLightbox(img.getAttribute('data-lightbox'));
+      if (img) { window.PlanexUI.lightbox(img.getAttribute('data-lightbox')); return; }
+      const apply = e.target.closest('[data-apply]');
+      if (apply) { applyProposal(apply.getAttribute('data-apply')); return; }
+      const dismiss = e.target.closest('[data-dismiss]');
+      if (dismiss) { dismissProposal(dismiss.getAttribute('data-dismiss')); return; }
     });
   }
 
@@ -116,7 +133,7 @@ window.PlanexModules.PlanexAI = (function () {
     if (!files || !files.length) return;
     Array.from(files).forEach(file => {
       if (file.size > 4 * 1024 * 1024) {
-        toast('File too large (max 4 MB). Please attach a smaller image.');
+        window.PlanexUI.toast('File too large (max 4 MB). Please attach a smaller image.');
         return;
       }
       const reader = new FileReader();
@@ -132,7 +149,6 @@ window.PlanexModules.PlanexAI = (function () {
       };
       reader.readAsDataURL(file);
     });
-    // reset inputs so same file can be re-picked
     const fi = document.querySelector('#file-image');
     const fp = document.querySelector('#file-plan');
     if (fi) fi.value = '';
@@ -158,15 +174,14 @@ window.PlanexModules.PlanexAI = (function () {
   }
 
   function submit() {
+    if (streaming) return;
     const input = document.querySelector('#composer-input');
     const text = (input.value || '').trim();
     if (!text && !pending.length) return;
 
     const attachments = pending.slice();
-    const uploadKinds = attachments.map(a => a.kind);
-    const hasPlan = uploadKinds.includes('plan');
+    const hasPlan = attachments.some(a => a.kind === 'plan');
 
-    // persist uploads into store
     attachments.forEach(a => store().addUpload(a));
     store().addChatMessage('user', text || (hasPlan ? 'Uploaded a site plan.' : 'Uploaded an image.'), attachments);
 
@@ -174,24 +189,96 @@ window.PlanexModules.PlanexAI = (function () {
     input.style.height = 'auto';
     pending = [];
     renderAttachments();
-
-    typing = true;
     renderMessages();
 
-    const delay = 650 + Math.random() * 550;
+    if (hosted()) {
+      hostedTurn(text, attachments, hasPlan);
+    } else {
+      localTurn(text, attachments, hasPlan);
+    }
+  }
+
+  function localTurn(text, attachments, hasPlan) {
+    typing = true;
+    renderMessages();
+    const delay = 550 + Math.random() * 450;
     setTimeout(() => {
       const reply = window.PlanexAI.respond(text, {
         uploaded: attachments.length > 0,
         uploadKind: hasPlan ? 'plan' : 'image'
       });
-      store().addChatMessage('ai', reply, []);
       typing = false;
-
+      store().addChatMessage('assistant', reply, []);
       if (hasPlan) {
-        store().updateContext({ notes: 'Site plan received. Rooms detected: Living, Kitchen, Master, Kids, Study, Bath.' });
+        store().updateContext({ notes: 'Site plan received. Rooms detected from the uploaded plan (AI estimate — verify).' });
       }
       renderMessages();
     }, delay);
+  }
+
+  async function hostedTurn(text, attachments, hasPlan) {
+    streaming = true;
+    const scroll = document.querySelector('#chat-scroll');
+    let tmp = null;
+    let bubble = null;
+
+    if (scroll) {
+      tmp = document.createElement('div');
+      tmp.className = 'msg ai';
+      tmp.innerHTML = '<div class="msg-avatar">' + ic('sparkles') + '</div>' +
+        '<div class="msg-body"><div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div></div>';
+      scroll.appendChild(tmp);
+      bubble = tmp.querySelector('.bubble');
+      scroll.scrollTop = scroll.scrollHeight;
+    }
+
+    let acc = '';
+    let proposals = [];
+    let patched = false;
+    let errored = false;
+
+    try {
+      await window.PlanexAIClient.send({
+        message: text,
+        attachments: attachments,
+        state: store().getGroundingState(),
+        onDelta: (t) => {
+          acc += t;
+          if (bubble) { bubble.textContent = acc; scroll.scrollTop = scroll.scrollHeight; }
+        },
+        onPatch: (d) => {
+          patched = true;
+          store().applyContextPatch(d.patch, d.version);
+        },
+        onProposals: (list) => { proposals = list || []; },
+        onError: () => { errored = true; },
+        onDone: () => {}
+      });
+    } catch (err) {
+      errored = true;
+      window.PlanexUI.toast('Hosted assistant unavailable — using offline assistant.');
+    }
+
+    if (!acc) {
+      acc = window.PlanexAI.respond(text, {
+        uploaded: attachments.length > 0,
+        uploadKind: hasPlan ? 'plan' : 'image'
+      });
+      if (bubble) bubble.textContent = acc;
+    }
+
+    if (tmp) tmp.remove();
+    store().addChatMessage('assistant', acc, [], proposals.length ? { proposals: proposals } : {});
+
+    if (patched) {
+      store().pushAudit && store().pushAudit('context.ai_update', {});
+    }
+    if (hasPlan) {
+      store().updateContext({ notes: 'Site plan received. Rooms extracted as AI estimates — please verify dimensions.' });
+    }
+
+    streaming = false;
+    renderMessages();
   }
 
   function renderMessages() {
@@ -202,9 +289,8 @@ window.PlanexModules.PlanexAI = (function () {
     let html = '';
 
     if (S.chat.length <= 1 && !typing) {
-      // welcome + suggestions
       const seed = S.chat[0];
-      html += bubble(seed, true);
+      html += bubble(seed, 0);
       html += `
         <div style="display:flex;justify-content:center;margin-top:6px;">
           <div class="chat-suggestions">
@@ -215,7 +301,7 @@ window.PlanexModules.PlanexAI = (function () {
           </div>
         </div>`;
     } else {
-      html += S.chat.map((m, i) => bubble(m, false)).join('');
+      html += S.chat.map((m, i) => bubble(m, i)).join('');
     }
 
     if (typing) {
@@ -230,15 +316,12 @@ window.PlanexModules.PlanexAI = (function () {
     scroll.scrollTop = scroll.scrollHeight;
   }
 
-  function bubble(m, isSeed) {
+  function bubble(m, msgIndex) {
     const isUser = m.role === 'user';
     const atts = (m.attachments || []).map(a => {
-      if (a.kind === 'image') {
-        return `<img src="${a.dataUrl}" alt="" data-lightbox="${a.dataUrl}">`;
-      }
+      if (a.kind === 'image') return `<img src="${a.dataUrl}" alt="" data-lightbox="${a.dataUrl}">`;
       if (a.kind === 'plan') {
-        // plan may be pdf or image
-        if (a.dataUrl && a.dataUrl.startsWith('data:image')) {
+        if (a.dataUrl && a.dataUrl.indexOf('data:image') === 0) {
           return `<span class="msg-file" data-lightbox="${a.dataUrl}">${ic('plan')} ${esc(a.name)}</span>`;
         }
         return `<span class="msg-file">${ic('plan')} ${esc(a.name)}</span>`;
@@ -246,42 +329,170 @@ window.PlanexModules.PlanexAI = (function () {
       return '';
     }).join('');
 
+    const proposals = (!isUser && Array.isArray(m.proposals) && m.proposals.length)
+      ? `<div class="proposal-stack">${m.proposals.map((p, pi) => proposalCard(p, msgIndex, pi)).join('')}</div>`
+      : '';
+
     return `
       <div class="msg ${isUser ? 'user' : 'ai'}">
         <div class="msg-avatar">${isUser ? ic('user') : ic('sparkles')}</div>
         <div class="msg-body">
           <div class="bubble">${esc(m.text)}</div>
           ${atts ? `<div class="msg-attachments">${atts}</div>` : ''}
+          ${proposals}
           <span class="msg-time">${esc(m.time || '')}</span>
         </div>
       </div>`;
   }
 
-  function showBrief() {
-    const S = store().state;
-    const c = S.context;
-    const fin = store().getFinancials();
-    modal('Project Brief', `
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <p class="muted text-sm">Planex AI has built this evolving context from your conversation. It follows you across every stage.</p>
-        <div class="card">
-          <div class="text-xs uppercase faint bold" style="margin-bottom:8px;">Space</div>
-          <div style="font-size:14px;">${esc(c.spaceType)} • ${esc(c.spaces.join(', '))}</div>
-        </div>
-        <div class="field-row">
-          <div class="card"><div class="text-xs uppercase faint bold">Style</div><div style="margin-top:6px;">${esc(c.style.join(' + '))}</div></div>
-          <div class="card"><div class="text-xs uppercase faint bold">Family</div><div style="margin-top:6px;">${esc(c.family)}</div></div>
-        </div>
-        <div class="card"><div class="text-xs uppercase faint bold">Budget</div><div style="margin-top:6px;">${store().formatMoney(c.budget)} <span class="muted">• Est. ${store().formatMoney(fin.total)}</span></div></div>
-        <div class="card"><div class="text-xs uppercase faint bold">Notes</div><div style="margin-top:6px;font-size:13px;">${esc(c.notes)}</div></div>
-      </div>
-    `);
+  function proposalSummary(p) {
+    const d = p.payload || {};
+    if (p.type === 'boq.add') {
+      return `Add to BOQ · ${d.item} · ${d.qty || 1} ${d.unit || 'nos'} @ ${window.PlanexStore.formatMoney(d.rate || 0)}`;
+    }
+    if (p.type === 'room.upsert') {
+      return `Set room · ${d.name} · ${d.lengthM} × ${d.widthM} m`;
+    }
+    if (p.type === 'style.apply') {
+      return `Apply style · ${(d.directions || []).join(', ')}`;
+    }
+    return p.type;
   }
 
-  /* ---------- shared helpers (assigned onto a small util) ---------- */
-  function toast(msg) { window.PlanexUI.toast(msg); }
-  function modal(title, bodyHtml) { window.PlanexUI.modal(title, bodyHtml); }
-  function openLightbox(src) { window.PlanexUI.lightbox(src); }
+  function proposalCard(p, msgIndex, propIndex) {
+    const applied = !!p.applied;
+    return `
+      <div class="proposal-card ${applied ? 'applied' : ''}">
+        <div class="pc-head">
+          <span class="badge ${applied ? 'badge-success' : 'badge-info'}">${applied ? 'Applied' : 'Proposal'}</span>
+          <span class="pc-title">${esc(proposalSummary(p))}</span>
+        </div>
+        ${p.rationale ? `<div class="pc-rationale">${esc(p.rationale)}</div>` : ''}
+        ${applied ? '' : `
+        <div class="pc-actions">
+          <button class="btn btn-primary btn-sm" data-apply="${msgIndex}:${propIndex}">${ic('check')} Apply</button>
+          <button class="btn btn-ghost btn-sm" data-dismiss="${msgIndex}:${propIndex}">Dismiss</button>
+        </div>`}
+      </div>`;
+  }
+
+  function applyProposal(ref) {
+    const parts = String(ref).split(':');
+    const msgIndex = Number(parts[0]);
+    const propIndex = Number(parts[1]);
+    const S = store().state;
+    const msg = S.chat[msgIndex];
+    if (!msg || !msg.proposals || !msg.proposals[propIndex]) return;
+    const proposal = msg.proposals[propIndex];
+    const ok = store().applyProposal(proposal);
+    if (ok) {
+      proposal.applied = true;
+      if (window.PlanexAIClient && window.PlanexAIClient.audit) {
+        window.PlanexAIClient.audit('proposal.apply', { type: proposal.type, id: proposal.id });
+      }
+      window.PlanexUI.toast('Applied: ' + proposalSummary(proposal));
+      store().commit();
+      renderMessages();
+    } else {
+      window.PlanexUI.toast('Could not apply that proposal.');
+    }
+  }
+
+  function dismissProposal(ref) {
+    const parts = String(ref).split(':');
+    const msgIndex = Number(parts[0]);
+    const propIndex = Number(parts[1]);
+    const S = store().state;
+    const msg = S.chat[msgIndex];
+    if (!msg || !msg.proposals) return;
+    msg.proposals.splice(propIndex, 1);
+    store().commit();
+    renderMessages();
+  }
+
+  function showBrief() {
+    const S = store().state;
+    const c = S.context || {};
+    const money = (n) => store().formatMoney(n || 0);
+
+    const spaces = (c.spaces || []).map(s => `
+      <div class="brief-space">
+        <div style="display:flex;justify-content:space-between;gap:10px;">
+          <span style="font-weight:600;">${esc(s.name)}</span>
+          <span class="muted">${s.lengthM} × ${s.widthM} m</span>
+        </div>
+        ${s.source === 'ai-estimate' ? '<span class="badge badge-warning" style="margin-top:4px;">AI estimate — verify</span>' : ''}
+      </div>`).join('') || '<p class="muted text-sm">No spaces captured yet.</p>';
+
+    const palette = (c.style && c.style.palette || []).map(col =>
+      `<span class="palette-dot" style="background:${esc(col)}" title="${esc(col)}"></span>`).join('') || '<span class="muted text-sm">—</span>';
+
+    const versions = (S.contextVersions || []).slice(0, 8).map(v => `
+      <div class="brief-version">
+        <div>
+          <span class="badge badge-neutral">v${v.version}</span>
+          <span class="muted text-sm" style="margin-left:8px;">${esc(v.source)}</span>
+        </div>
+        ${v.version === S.contextVersion ? '<span class="faint text-xs">current</span>'
+          : `<button class="btn btn-ghost btn-sm" data-revert="${v.version}">Revert</button>`}
+      </div>`).join('') || '<p class="muted text-sm">No prior versions.</p>';
+
+    window.PlanexUI.modal('Evolving Project Brief', `
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <p class="muted text-sm">Planex AI maintains this brief from your conversation and carries it into every stage. Current version: <strong>v${S.contextVersion || 1}</strong>.</p>
+
+        <div class="card">
+          <div class="text-xs uppercase faint bold" style="margin-bottom:6px;">Project</div>
+          <div style="font-size:14px;">${esc((c.project && c.project.spaceType) || '—')} • ${esc((c.project && c.project.type) || '—')}</div>
+          <div class="muted text-sm">${esc((c.project && c.project.location) || '')}</div>
+        </div>
+
+        <div class="card">
+          <div class="text-xs uppercase faint bold" style="margin-bottom:8px;">Spaces</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">${spaces}</div>
+        </div>
+
+        <div class="field-row">
+          <div class="card"><div class="text-xs uppercase faint bold">Style</div>
+            <div style="margin-top:6px;">${esc((c.style && c.style.directions || []).join(' + ') || '—')}</div>
+            <div style="margin-top:8px;display:flex;gap:6px;">${palette}</div>
+          </div>
+          <div class="card"><div class="text-xs uppercase faint bold">Budget</div>
+            <div style="margin-top:6px;">${money(c.budget && c.budget.target)}</div>
+            <div class="muted text-sm">flexibility: ${esc((c.budget && c.budget.flexibility) || '—')}</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="text-xs uppercase faint bold" style="margin-bottom:6px;">Priorities &amp; pain points</div>
+          <div style="font-size:13px;">${esc((c.priorities || []).join(', ') || '—')}</div>
+          <div class="muted text-sm" style="margin-top:4px;">${esc((c.painPoints || []).join(', ') || '')}</div>
+        </div>
+
+        <div class="card">
+          <div class="text-xs uppercase faint bold" style="margin-bottom:6px;">Notes</div>
+          <div style="font-size:13px;">${esc(c.notes || '—')}</div>
+        </div>
+
+        <div class="card">
+          <div class="text-xs uppercase faint bold" style="margin-bottom:8px;">Version history</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">${versions}</div>
+        </div>
+      </div>
+    `);
+
+    document.querySelectorAll('[data-revert]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const version = Number(btn.getAttribute('data-revert'));
+        if (store().revertContext(version)) {
+          window.PlanexUI.closeModal();
+          window.PlanexUI.toast('Brief reverted to v' + version);
+          renderMessages();
+          showBrief();
+        }
+      });
+    });
+  }
 
   return { render };
 })();

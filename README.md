@@ -37,16 +37,24 @@ css/
   app.css                  Layout + module styles
 
 js/
+  config.js                Worker URL + Turnstile site key (enable hosted AI)
+  context.js               RFC 7386 merge patch + the evolving brief shape
   data.js                  Seed project (rooms, BOQ, vendors, timeline, QC)
-  store.js                 Reactive state, localStorage, financial calculators
-  ai-engine.js             Domain-aware interior assistant responses
+  store.js                 Reactive state, localStorage, context versioning, audit
+  ai-engine.js             Offline rule-based assistant (fallback)
+  ai-client.js             Hosted assistant client: session, SSE, Turnstile, fallback
   app.js                   Icons, UI helpers (toast/modal/lightbox), router
   modules/
     dashboard.js           Lifecycle overview + stage rail + stats
-    planex-ai.js           Chat + image / site-plan uploads
+    planex-ai.js           Chat, streaming, proposals, site-plan uploads, brief
     design-docket.js       Floorplan canvas + furniture layout + BOQ
     quotation.js           Vendor quotes, comparison, spec-lock, PDF export
     execution.js           Timeline, milestones, QC, handover
+
+worker/                    Cloudflare Worker + Gemini (see worker/README.md)
+  src/                     router+SSE, gemini, session, turnstile, quota, db, schema
+  migrations/              D1 schema
+  test/                    unit tests
 
 assets/                    (reserved for static assets)
 ```
@@ -54,6 +62,32 @@ assets/                    (reserved for static assets)
 Module folders are named after the actual product stages so the codebase maps 1:1 to the customer journey.
 
 ---
+
+## Planex AI assistant (Ideate stage)
+
+The assistant runs in two modes:
+
+- **Offline (default)** — the built-in rule-based engine in `js/ai-engine.js`. Works with no
+  setup and no keys.
+- **Hosted (Gemini)** — a Cloudflare Worker proxies Google Gemini, keeps server-side sessions
+  in D1, streams the reply, and autonomously evolves a structured project brief. It proposes
+  BOQ/room changes but never applies them without your click.
+
+Enable the hosted mode by setting `js/config.js`:
+
+```js
+window.PLANEX_CONFIG = {
+  workerUrl: 'https://planex-ai.<your-subdomain>.workers.dev',
+  turnstileSiteKey: '<your public Turnstile site key>'
+};
+```
+
+Full setup, deploy, and security notes are in **[`worker/README.md`](worker/README.md)**.
+
+Design principles baked into the assistant: **grounded** (only uses real project numbers),
+**optimistic but honest** (labels every estimate), **context-only autonomy** (the brief evolves
+automatically; BOQ and rooms are propose-only), and **versioned** (every brief change can be
+reviewed and reverted).
 
 ## Run Locally
 

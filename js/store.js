@@ -19,7 +19,7 @@ window.PlanexStore = (function () {
 
   function buildInitial() {
     const D = window.PlanexData;
-    return {
+    const initial = {
       theme: 'light',
       currency: 'INR',
       activeView: 'dashboard',
@@ -33,16 +33,33 @@ window.PlanexStore = (function () {
       chat: JSON.parse(JSON.stringify(D.chatSeed)),
       uploads: [],
       activeRoomId: D.rooms[0].id,
+      contextVersion: 1,
       context: {
-        projectType: D.project.type,
-        spaceType: D.project.spaceType,
-        spaces: ['Living Room', 'Modular Kitchen', 'Master Bedroom'],
-        style: ['Warm Minimal', 'Japandi'],
-        budget: D.project.budget,
-        family: '4 members',
+        project: { type: D.project.type, spaceType: D.project.spaceType, location: D.project.location },
+        spaces: D.rooms.map(function (r) {
+          return { id: r.id, name: r.name, lengthM: r.length, widthM: r.width, source: 'user', confidence: 1 };
+        }),
+        style: { directions: ['Warm Minimal', 'Japandi'], palette: [], avoids: [] },
+        budget: { target: D.project.budget, currency: 'INR', flexibility: 'some' },
+        family: { members: 4, children: 2, pets: 1 },
+        priorities: ['storage', 'low-maintenance'],
+        constraints: { keepFurniture: [], timeline: D.project.handoverDate, vastu: false },
+        preferences: { materials: [], exclusions: [] },
+        painPoints: ['poor kitchen light', 'storage shortage'],
+        openQuestions: [],
+        decisions: [],
         notes: 'Prefers low-maintenance finishes. Wants more storage.'
-      }
+      },
+      contextVersions: [],
+      audit: []
     };
+    initial.contextVersions.push({
+      version: 1,
+      source: 'seed',
+      at: new Date().toISOString(),
+      context: JSON.parse(JSON.stringify(initial.context))
+    });
+    return initial;
   }
 
   function load() {
@@ -50,8 +67,12 @@ window.PlanexStore = (function () {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.boq && parsed.project) {
+        if (parsed && parsed.project && parsed.boq) {
           state = parsed;
+          if (!Array.isArray(state.contextVersions)) state.contextVersions = [];
+          if (!Array.isArray(state.audit)) state.audit = [];
+          if (!state.context || !state.context.project) state.context = buildInitial().context;
+          if (!state.contextVersion) state.contextVersion = 1;
           return;
         }
       }
@@ -185,12 +206,13 @@ window.PlanexStore = (function () {
     if (item) { item.status = status; commit(); }
   }
 
-  function addChatMessage(role, text, attachments) {
-    state.chat.push({
-      role, text,
+  function addChatMessage(role, text, attachments, extra) {
+    state.chat.push(Object.assign({
+      role,
+      text,
       time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       attachments: attachments || []
-    });
+    }, extra || {}));
     commit();
   }
 
@@ -205,7 +227,117 @@ window.PlanexStore = (function () {
     commit();
   }
 
-  function updateContext(patch) { Object.assign(state.context, patch); commit(); }
+  function updateContext(patch) {
+    state.context = window.PlanexContext.mergePatch(state.context, patch || {});
+    state.contextVersion = state.contextVersion + 1;
+    snapshotContext('user');
+    commit();
+  }
+
+  /* ---------- Evolving context: versioning, adopt, patch, revert ---------- */
+  function snapshotContext(source) {
+    const version = state.contextVersion;
+    state.contextVersions = state.contextVersions.filter(function (v) { return v.version !== version; });
+    state.contextVersions.unshift({
+      version: version,
+      source: source || 'ai',
+      at: new Date().toISOString(),
+      context: JSON.parse(JSON.stringify(state.context))
+    });
+    if (state.contextVersions.length > 30) state.contextVersions.length = 30;
+  }
+
+  function adoptServerContext(context, version) {
+    if (!context || typeof context !== 'object') return;
+    state.context = context;
+    state.contextVersion = version || state.contextVersion || 1;
+    snapshotContext('server');
+    commit();
+  }
+
+  function applyContextPatch(patch, version) {
+    if (!patch || typeof patch !== 'object') return;
+    state.context = window.PlanexContext.mergePatch(state.context, patch);
+    state.contextVersion = version || (state.contextVersion + 1);
+    snapshotContext('ai');
+    commit();
+  }
+
+  function revertContext(version) {
+    const snap = state.contextVersions.find(function (v) { return v.version === version; });
+    if (!snap) return false;
+    state.context = JSON.parse(JSON.stringify(snap.context));
+    state.contextVersion = version;
+    pushAudit('context.revert', { version: version });
+    commit();
+    return true;
+  }
+
+  function pushAudit(kind, detail) {
+    state.audit.unshift({ kind: kind, detail: detail || {}, at: new Date().toISOString() });
+    if (state.audit.length > 100) state.audit.length = 100;
+  }
+
+  /* Apply a proposal the user explicitly confirmed. */
+  function applyProposal(proposal) {
+    if (!proposal || !proposal.type) return false;
+    const p = proposal.payload || {};
+    if (proposal.type === 'boq.add') {
+      if (!p.item) return false;
+      state.boq.push({
+        id: 'b-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+        room: p.room || state.activeRoomId,
+        category: p.category || 'Furniture',
+        item: p.item,
+        qty: Number(p.qty) || 0,
+        unit: p.unit || 'nos',
+        rate: Number(p.rate) || 0
+      });
+    } else if (proposal.type === 'room.upsert') {
+      const existing = state.rooms.find(function (r) {
+        return (p.id && r.id === p.id) || r.name.toLowerCase() === String(p.name || '').toLowerCase();
+      });
+      if (existing) {
+        existing.name = p.name || existing.name;
+        existing.length = Number(p.lengthM) || existing.length;
+        existing.width = Number(p.widthM) || existing.width;
+        existing.area = (existing.length * existing.width).toFixed(1) + ' m²';
+      } else {
+        state.rooms.push({
+          id: p.id || ('room-' + Date.now()),
+          name: p.name,
+          length: Number(p.lengthM) || 0,
+          width: Number(p.widthM) || 0,
+          area: ((Number(p.lengthM) || 0) * (Number(p.widthM) || 0)).toFixed(1) + ' m²',
+          color: '#9db8c9',
+          type: 'private'
+        });
+      }
+    } else if (proposal.type === 'style.apply') {
+      state.context.style = window.PlanexContext.mergePatch(state.context.style || {}, {
+        directions: p.directions || [],
+        palette: p.palette || []
+      });
+    } else {
+      return false;
+    }
+    pushAudit('proposal.apply', { type: proposal.type, id: proposal.id });
+    commit();
+    return true;
+  }
+
+  /* Grounding snapshot sent with each chat turn (client owns the BOQ/rooms). */
+  function getGroundingState() {
+    return {
+      budget: state.project.budget,
+      currency: state.currency,
+      financials: getFinancials(),
+      rooms: state.rooms.map(function (r) { return { id: r.id, name: r.name, lengthM: r.length, widthM: r.width }; }),
+      boqLines: state.boq.map(function (b) {
+        return { room: b.room, category: b.category, item: b.item, qty: b.qty, unit: b.unit, rate: b.rate };
+      })
+    };
+  }
 
   function recomputeProjectStage() {
     const anyActive = state.timeline.some(p => p.status === 'active');
@@ -231,6 +363,7 @@ window.PlanexStore = (function () {
     boqSubtotal, boqLinesWithAmount, quoteFor, allQuotes, selectedQuote, getFinancials,
     setView, setTheme, setActiveRoom, updateBOQItem, selectVendor,
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
+    adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit,
     reset
   };
 })();
