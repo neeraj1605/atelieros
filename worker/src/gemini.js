@@ -1,5 +1,10 @@
 // Gemini API integration: streaming prose (Flash) + structured extraction (Flash-Lite).
-const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const DEFAULT_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// GEMINI_API_BASE lets tests point at a local mock. Never set it in production.
+function apiBase(env) {
+  return (env && env.GEMINI_API_BASE) || DEFAULT_API_BASE;
+}
 
 // Convert stored transcript + attachments into Gemini `contents`.
 export function toGeminiContents(messages, attachments) {
@@ -22,7 +27,7 @@ export function toGeminiContents(messages, attachments) {
 
 export async function streamReply(env, systemInstruction, contents, onDelta) {
   const model = env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash';
-  const url = `${API_BASE}/${model}:streamGenerateContent?alt=sse&key=${env.GEMINI_API_KEY}`;
+  const url = `${apiBase(env)}/${model}:streamGenerateContent?alt=sse&key=${env.GEMINI_API_KEY}`;
   const body = {
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents,
@@ -77,7 +82,7 @@ export async function streamReply(env, systemInstruction, contents, onDelta) {
 
 export async function extractStructured(env, prompt) {
   const model = env.GEMINI_LITE_MODEL || 'gemini-2.5-flash-lite';
-  const url = `${API_BASE}/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const url = `${apiBase(env)}/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
