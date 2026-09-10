@@ -7,7 +7,7 @@ window.PLANEX_CONFIG = {
   // NOTE: this is a temporary tunnel — it stays up only while the Worker and
   // tunnel processes run on the host machine. For a permanent endpoint, deploy
   // the Worker (see worker/README.md) and replace this URL.
-  workerUrl: 'https://klein-pearl-fewer-means.trycloudflare.com',
+  workerUrl: 'https://sonic-totally-necklace-running.trycloudflare.com',
 
   // Cloudflare Turnstile site key. Test key (always passes); replace for production.
   turnstileSiteKey: '1x00000000000000000000AA',
