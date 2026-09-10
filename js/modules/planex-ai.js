@@ -135,12 +135,12 @@ window.PlanexModules.PlanexAI = (function () {
       if (dismiss) { dismissProposal(dismiss.getAttribute('data-dismiss')); return; }
       const buildScope = e.target.closest('[data-build-scope]');
       if (buildScope) {
-        window.PlanexApp.navigate('docket');
+        window.PlanexApp.navigate('scope');
         setTimeout(function () {
-          if (window.PlanexModules.DesignDocket && window.PlanexModules.DesignDocket.buildScope) {
-            window.PlanexModules.DesignDocket.buildScope();
-          }
-        }, 250);
+          window.PlanexStore.regenerateScope();
+          window.PlanexApp.renderView();
+          window.PlanexUI.toast('Scope generated from your areas.');
+        }, 200);
         return;
       }
     });

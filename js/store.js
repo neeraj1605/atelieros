@@ -53,8 +53,10 @@ window.PlanexStore = (function () {
       contextVersions: [],
       audit: [],
       renders: [],
-      scope: null
+      scopeDoc: null,
+      scopeQuality: 'standard'
     };
+    initial.project.projectType = 'ready';
     initial.contextVersions.push({
       version: 1,
       source: 'seed',
@@ -74,7 +76,9 @@ window.PlanexStore = (function () {
           if (!Array.isArray(state.contextVersions)) state.contextVersions = [];
           if (!Array.isArray(state.audit)) state.audit = [];
           if (!Array.isArray(state.renders)) state.renders = [];
-          if (state.scope === undefined) state.scope = null;
+          if (state.scopeDoc === undefined) state.scopeDoc = null;
+          if (!state.scopeQuality) state.scopeQuality = 'standard';
+          if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (!state.context || !state.context.project) state.context = buildInitial().context;
           if (!state.contextVersion) state.contextVersion = 1;
           return;
@@ -298,53 +302,61 @@ window.PlanexStore = (function () {
   }
 
   /* ---------- Scope ---------- */
-  function setScope(scope) {
-    state.scope = scope || null;
+  function setProjectType(pt) {
+    if (!state.project) state.project = {};
+    state.project.projectType = pt;
     commit();
   }
 
-  function ensureRoomForScope(room) {
-    const existing = state.rooms.find(function (r) {
-      return r.name.toLowerCase() === String(room.name || '').toLowerCase();
+  function setScopeQuality(q) { state.scopeQuality = q; commit(); }
+
+  function setScopeDoc(doc) { state.scopeDoc = doc || null; commit(); }
+
+  function regenerateScope() {
+    if (!window.PlanexScopeEngine) return null;
+    state.scopeDoc = window.PlanexScopeEngine.generateScopeDoc({
+      projectType: (state.project && state.project.projectType) || 'ready',
+      quality: state.scopeQuality || 'standard',
+      rooms: state.rooms,
+      budget: state.project && state.project.budget
     });
-    if (existing) return existing.id;
-    const id = room.id || ('room-' + Date.now());
-    state.rooms.push({
-      id: id,
-      name: room.name,
-      length: 0,
-      width: 0,
-      area: '—',
-      color: '#9db8c9',
-      type: room.type || 'private'
+    pushAudit('scope.generate', {
+      projectType: state.scopeDoc.projectType,
+      packages: state.scopeDoc.packages.length
     });
-    return id;
+    commit();
+    return state.scopeDoc;
   }
 
-  // Push selected scope items into the BOQ. Rates are left at 0 for the user to fill.
-  function addScopeToBOQ(roomId) {
-    const scope = state.scope;
-    if (!scope || !Array.isArray(scope.rooms)) return 0;
+  function recomputeScope() {
+    if (state.scopeDoc && window.PlanexScopeEngine) {
+      window.PlanexScopeEngine.recompute(state.scopeDoc);
+      commit();
+    }
+  }
+
+  // Push scope activities into the BOQ (rates carried over, still editable).
+  function addScopeToBOQ(packageId) {
+    const doc = state.scopeDoc;
+    if (!doc || !Array.isArray(doc.packages)) return 0;
     let added = 0;
-    scope.rooms.forEach(function (room) {
-      if (roomId && room.id !== roomId) return;
-      const targetRoomId = ensureRoomForScope(room);
-      room.categories.forEach(function (cat) {
-        cat.items.forEach(function (item) {
-          if (item.included === false) return;
-          state.boq.push({
-            id: 'b-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
-            room: targetRoomId,
-            category: cat.name,
-            item: item.name,
-            qty: Number(item.qty) || 1,
-            unit: item.unit || 'nos',
-            rate: 0
-          });
-          added++;
+    doc.packages.forEach(function (pkg) {
+      if (packageId && pkg.id !== packageId) return;
+      pkg.activities.forEach(function (act) {
+        if (act.included === false) return;
+        state.boq.push({
+          id: 'b-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+          room: act.room || '',
+          category: pkg.name,
+          item: act.name + (act.detail ? ' — ' + act.detail : ''),
+          qty: Number(act.qty) || 0,
+          unit: act.unit || 'nos',
+          rate: Number(act.rate) || 0
         });
+        added++;
       });
     });
+    pushAudit('scope.to_boq', { package: packageId || 'all', items: added });
     commit();
     return added;
   }
@@ -436,7 +448,7 @@ window.PlanexStore = (function () {
     setView, setTheme, setActiveRoom, updateBOQItem, selectVendor,
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
-    setScope, addScopeToBOQ,
+    setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
     reset
   };
 })();

@@ -12,35 +12,6 @@ window.PlanexModules.DesignDocket = (function () {
   function ic(n) { return window.PlanexIcons.get(n); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-  function scopeRoomsHtml(scope) {
-    return '<div class="scope-rooms">' + scope.rooms.map((room, ri) => {
-      const count = room.categories.reduce((n, c) => n + c.items.length, 0);
-      const cats = room.categories.map((cat, ci) => `
-        <div class="scope-cat">
-          <div class="scope-cat-name">${esc(cat.name)}${cat.known ? '' : ' <span class="faint text-xs">(custom)</span>'}</div>
-          ${cat.items.map((it, ii) => `
-            <label class="scope-item">
-              <input type="checkbox" ${it.included === false ? '' : 'checked'} data-scope-toggle="${ri}:${ci}:${ii}">
-              <span class="scope-item-name">${esc(it.name)}</span>
-              <input class="scope-qty" type="number" min="0" value="${it.qty}" data-scope-qty="${ri}:${ci}:${ii}">
-              <span class="scope-unit">${esc(it.unit)}</span>
-              ${it.note ? `<span class="scope-note">${esc(it.note)}</span>` : ''}
-            </label>`).join('')}
-        </div>`).join('');
-      return `
-        <details class="scope-room" open>
-          <summary>
-            <span class="scope-room-name">${esc(room.name)}</span>
-            <span class="faint text-xs">${count} items</span>
-          </summary>
-          ${cats}
-          <div class="scope-room-actions">
-            <button class="btn btn-secondary btn-sm" data-scope-room-add="${ri}">Add this room to BOQ</button>
-          </div>
-        </details>`;
-    }).join('') + '</div>';
-  }
-
   function furnitureFor(room) {
     // returns items in metres relative to room L (x) × W (y)
     const L = room.length, W = room.width;
@@ -215,27 +186,6 @@ window.PlanexModules.DesignDocket = (function () {
         <td class="num bold">${money(b.qty * b.rate)}</td>
       </tr>`).join('');
 
-    const scope = S.scope;
-    const scopeSection = `
-        <div class="section-label anim anim-3">Scope of Work</div>
-        <div class="card anim anim-3">
-          <div class="card-head">
-            <div>
-              <div class="card-title">${scope ? 'Room-wise Scope' : 'Build the Scope'}</div>
-              <div class="card-sub">${scope ? 'Review, adjust quantities and push to the BOQ' : 'From your floor plan or brief — flooring, painting, civil, ceiling, lighting, plumbing, joinery and more'}</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              ${scope
-                ? `<button class="btn btn-secondary btn-sm" id="scope-rebuild">${ic('sparkles')} Rebuild</button>
-                   <button class="btn btn-primary btn-sm" id="scope-add-all">${ic('plus')} Add selected to BOQ</button>`
-                : `<button class="btn btn-primary btn-sm" id="scope-build">${ic('plan')} Build scope</button>`}
-            </div>
-          </div>
-          ${scope
-            ? scopeRoomsHtml(scope)
-            : `<p class="muted text-sm">Upload a floor plan in <strong>Planex AI</strong>, then build a room-by-room scope of work. Every item is an AI estimate you can adjust before it reaches the BOQ.</p>`}
-        </div>`;
-
     const rendersSection = (S.renders && S.renders.length) ? `
         <div class="section-label anim anim-3">Concept Renders</div>
         <div class="card anim anim-3">
@@ -293,7 +243,6 @@ window.PlanexModules.DesignDocket = (function () {
           </div>
         </div>
 
-        ${scopeSection}
         ${rendersSection}
         <div class="section-label anim anim-3">Bill of Quantities</div>
         <div class="card anim anim-3" style="padding:0;overflow:hidden;">
@@ -346,45 +295,6 @@ window.PlanexModules.DesignDocket = (function () {
     container.querySelector('#docket-add').addEventListener('click', addItemDialog);
     container.querySelectorAll('[data-lightbox]').forEach(el => {
       el.addEventListener('click', () => window.PlanexUI.lightbox(el.getAttribute('data-lightbox')));
-    });
-
-    // ---- Scope ----
-    const buildBtn = container.querySelector('#scope-build') || container.querySelector('#scope-rebuild');
-    if (buildBtn) buildBtn.addEventListener('click', buildScope);
-
-    const addAll = container.querySelector('#scope-add-all');
-    if (addAll) addAll.addEventListener('click', () => {
-      const n = store().addScopeToBOQ();
-      window.PlanexUI.toast(n + ' scope items added to the BOQ (rates blank).');
-      window.PlanexApp.renderView();
-    });
-
-    container.querySelectorAll('[data-scope-room-add]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const ri = Number(btn.getAttribute('data-scope-room-add'));
-        const room = store().state.scope.rooms[ri];
-        const n = store().addScopeToBOQ(room.id);
-        window.PlanexUI.toast(n + ' items from ' + room.name + ' added to the BOQ.');
-        window.PlanexApp.renderView();
-      });
-    });
-
-    container.querySelectorAll('[data-scope-toggle]').forEach(el => {
-      el.addEventListener('change', () => {
-        const p = el.getAttribute('data-scope-toggle').split(':').map(Number);
-        const it = store().state.scope.rooms[p[0]].categories[p[1]].items[p[2]];
-        it.included = el.checked;
-        store().commit();
-      });
-    });
-
-    container.querySelectorAll('[data-scope-qty]').forEach(el => {
-      el.addEventListener('change', () => {
-        const p = el.getAttribute('data-scope-qty').split(':').map(Number);
-        const it = store().state.scope.rooms[p[0]].categories[p[1]].items[p[2]];
-        it.qty = Math.max(0, Number(el.value) || 0);
-        store().commit();
-      });
     });
 
     // redraw on resize
@@ -443,38 +353,5 @@ window.PlanexModules.DesignDocket = (function () {
     });
   }
 
-  async function buildScope() {
-    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) {
-      window.PlanexUI.toast('Scope building needs the hosted assistant (set workerUrl in config).');
-      return;
-    }
-    const uploads = store().state.uploads || [];
-    const plans = uploads.filter((u) => u.kind === 'plan');
-    const plan = plans.length ? plans[plans.length - 1] : null;
-
-    const btn = document.querySelector('#scope-build') || document.querySelector('#scope-rebuild');
-    const prev = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Building scope…'; }
-
-    try {
-      const res = await window.PlanexAIClient.buildScope({
-        attachments: plan ? [plan] : [],
-        state: store().getGroundingState()
-      });
-      if (res && res.scope && Array.isArray(res.scope.rooms) && res.scope.rooms.length) {
-        store().setScope(res.scope);
-        if (window.PlanexAIClient.audit) window.PlanexAIClient.audit('scope.build', { rooms: res.scope.rooms.length });
-        window.PlanexUI.toast('Scope built for ' + res.scope.rooms.length + ' rooms.');
-        window.PlanexApp.renderView();
-        return;
-      }
-      window.PlanexUI.toast('Could not build a scope yet — upload a floor plan or add rooms first.');
-    } catch (err) {
-      const code = err && err.status ? err.status : 'network';
-      window.PlanexUI.toast('Scope build failed (' + code + ').');
-    }
-    if (btn) { btn.disabled = false; btn.textContent = prev; }
-  }
-
-  return { render, buildScope };
+  return { render };
 })();
