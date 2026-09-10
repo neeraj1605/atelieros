@@ -85,23 +85,20 @@ window.PlanexModules.Scope = (function () {
 
   function floorplanCard(S) {
     const fp = S.floorplan;
+    const validated = fp && fp.validated;
     return `
         <div class="section-label anim anim-1">Floor Plan</div>
         <div class="card anim anim-1">
           <div class="card-head">
             <div>
-              <div class="card-title">${fp ? esc(fp.name) : 'Upload your floor plan'}</div>
-              <div class="card-sub">${fp ? 'Shared with the Design Docket' : 'We read rooms and sizes from it to build the scope'}</div>
+              <div class="card-title">${fp ? esc(fp.name) : 'No floor plan yet'}</div>
+              <div class="card-sub">${fp ? (validated ? 'Validated · ' + S.rooms.length + ' rooms' : 'Not validated — validate it in Project') : 'Upload and validate it in the Project tab'}</div>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-secondary btn-sm" id="fp-upload">${ic('upload')} ${fp ? 'Replace' : 'Upload'}</button>
-              ${fp ? `<button class="btn btn-primary btn-sm" id="fp-read">${ic('sparkles')} Read rooms (AI)</button>` : ''}
-            </div>
+            <span class="badge ${validated ? 'badge-success' : 'badge-warning'}">${validated ? 'Validated' : 'Not validated'}</span>
           </div>
           ${fp
             ? `<div class="plan-preview"><img src="${fp.dataUrl}" alt="Floor plan" data-lightbox="${fp.dataUrl}"></div>`
-            : `<p class="muted text-sm">Upload a photo or image of the floor plan. It appears here and in the Design Docket.</p>`}
-          <input type="file" id="fp-file" accept="image/*" hidden>
+            : `<p class="muted text-sm">Go to <strong>Project</strong> to upload the floor plan and add room photos.</p>`}
         </div>`;
   }
 
@@ -126,6 +123,7 @@ window.PlanexModules.Scope = (function () {
     const types = lib().PROJECT_TYPES;
     const qualities = lib().QUALITY;
     const currentType = (S.project && S.project.projectType) || 'ready';
+    const planValidated = !!(S.floorplan && S.floorplan.validated);
     const summary = doc ? doc.summary : null;
 
     const typeButtons = types.map(function (t) {
@@ -150,10 +148,17 @@ window.PlanexModules.Scope = (function () {
           </div>
         </div>
 
+        ${!planValidated ? `
+        <div class="card anim anim-1" style="border-color:var(--warning);">
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${ic('alert')}
+            <span>Validate your floor plan in <strong>Project</strong> for plan-specific scope and advice. You can still build from manual areas.</span>
+          </div>
+        </div>` : ''}
+
         <div class="card anim anim-1">
           <div class="card-head">
-            <div><div class="card-title">Project type</div><div class="card-sub">${esc((types.filter(function (t) { return t.id === currentType; })[0] || types[0]).description)}</div></div>
-            <div class="field" style="min-width:150px;">
+            <div><div class="card-title">Project type</div><div class="card-sub">${esc((types.filter(function (t) { return t.id === currentType; })[0] || types[0]).description)}</div></div>            <div class="field" style="min-width:150px;">
               <select class="select" id="scope-quality">${qualityOptions}</select>
             </div>
           </div>
@@ -219,6 +224,8 @@ window.PlanexModules.Scope = (function () {
 
     const regen = container.querySelector('#scope-regen');
     if (regen) regen.addEventListener('click', function () {
+      const fpv = store().state.floorplan && store().state.floorplan.validated;
+      if (!fpv && !confirm('The floor plan is not validated. Build the scope from the current (unverified) areas anyway?')) return;
       if (store().state.scopeDoc && !confirm('Regenerate the scope? Edits to quantities and rates will be replaced.')) return;
       const result = store().regenerateScope();
       if (result) window.PlanexUI.toast('Scope generated: ' + result.packages.length + ' work packages.');
@@ -235,26 +242,6 @@ window.PlanexModules.Scope = (function () {
     const print = container.querySelector('#scope-print');
     if (print) print.addEventListener('click', function () { window.print(); });
 
-    // floor plan
-    const fpUpload = container.querySelector('#fp-upload');
-    const fpFile = container.querySelector('#fp-file');
-    if (fpUpload && fpFile) {
-      fpUpload.addEventListener('click', function () { fpFile.click(); });
-      fpFile.addEventListener('change', function (e) {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        if (file.size > 4 * 1024 * 1024) { window.PlanexUI.toast('File too large (max 4 MB).'); return; }
-        const reader = new FileReader();
-        reader.onload = function () {
-          store().setFloorplan({ name: file.name, dataUrl: reader.result, size: file.size });
-          window.PlanexUI.toast('Floor plan uploaded.');
-          window.PlanexApp.renderView();
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-    const fpRead = container.querySelector('#fp-read');
-    if (fpRead) fpRead.addEventListener('click', readRoomsFromPlan);
     container.querySelectorAll('[data-lightbox]').forEach(function (el) {
       el.addEventListener('click', function () { window.PlanexUI.lightbox(el.getAttribute('data-lightbox')); });
     });
@@ -361,50 +348,6 @@ window.PlanexModules.Scope = (function () {
       window.PlanexApp.renderView();
       window.PlanexUI.toast('Room added and scope updated.');
     });
-  }
-
-  async function readRoomsFromPlan() {
-    const fp = store().state.floorplan;
-    if (!fp) { window.PlanexUI.toast('Upload a floor plan first.'); return; }
-    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) {
-      window.PlanexUI.toast('Reading a plan needs the hosted assistant (set workerUrl in config).');
-      return;
-    }
-    if (store().state.rooms.length && !confirm('Replace the current area schedule with rooms read from the plan?')) return;
-
-    const btn = document.querySelector('#fp-read');
-    const prev = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Reading plan…'; }
-
-    try {
-      const res = await window.PlanexAIClient.readPlan({ kind: 'plan', name: fp.name, dataUrl: fp.dataUrl });
-      const rooms = (res.rooms || []).map(function (r) {
-        return {
-          id: r.id || ('room-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4)),
-          name: r.name,
-          length: r.lengthM,
-          width: r.widthM,
-          area: (Number(r.lengthM) * Number(r.widthM)).toFixed(1) + ' m²',
-          color: '#9db8c9',
-          type: 'private',
-          source: r.source || 'ai-plan',
-          confidence: r.confidence || 'low'
-        };
-      });
-      if (!rooms.length) {
-        window.PlanexUI.toast('Could not read rooms from that plan.');
-        if (btn) { btn.disabled = false; btn.textContent = prev; }
-        return;
-      }
-      store().state.rooms = rooms;
-      store().commit();
-      store().regenerateScope();
-      window.PlanexUI.toast('Read ' + rooms.length + ' rooms from the plan.');
-      window.PlanexApp.renderView();
-    } catch (e) {
-      window.PlanexUI.toast('Plan reading failed (' + (e && e.status ? e.status : 'network') + ').');
-      if (btn) { btn.disabled = false; btn.textContent = prev; }
-    }
   }
 
   return { render: render };

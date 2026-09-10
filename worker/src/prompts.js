@@ -19,6 +19,17 @@ export const SAFETY_RULES = `SAFETY:
 - Do not give structural, electrical-load, or gas safety engineering advice; refer to a licensed professional.
 - Costs and timelines are indicative, not contractual.`;
 
+export const CONTEXT_RULES = `CONTEXTUALITY (critical):
+- You have the user's real PLAN (room names and dimensions) and SCOPE (work packages and amounts) in PROJECT STATE.
+- Always reference specific rooms and their dimensions. Never give generic advice when plan data exists
+  (e.g. "in your 5.4 x 4.2 m living room...").
+- For ANY cost question, quote the SCOPE package/subtotal amounts. Never invent prices.
+- If a room photo is attached, look at it and reference what you actually see in it.
+- If grounding.plan.validated is false, or there is no plan, do NOT assert plan-specific facts; ask the
+  user to validate the floor plan in the Project tab.
+- If grounding.scope is missing, say so and offer to build it: ask the few questions needed (project
+  type, quality tier, any rooms not on the plan), then propose the scope.`;
+
 export function buildSystemInstruction(context, grounding) {
   const state = {
     brief: context || {},
@@ -28,6 +39,7 @@ export function buildSystemInstruction(context, grounding) {
     PERSONA,
     GROUNDING_RULES,
     AUTONOMY_RULES,
+    CONTEXT_RULES,
     SAFETY_RULES,
     'PROJECT STATE (authoritative):',
     JSON.stringify(state, null, 2)

@@ -75,8 +75,8 @@ async function streamGenerateContent(env, model, body, onDelta) {
   return { text: full, tokens };
 }
 
-export async function streamReply(env, systemInstruction, contents, onDelta) {
-  const model = env.GEMINI_FLASH_MODEL || 'gemini-3.6-flash';
+export async function streamReply(env, systemInstruction, contents, onDelta, modelName) {
+  const model = modelName || env.GEMINI_FLASH_MODEL || 'gemini-3.6-flash';
   const body = {
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents,

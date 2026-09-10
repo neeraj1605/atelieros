@@ -91,20 +91,22 @@
   /* ---------------- App ---------------- */
   const NAV = [
     { view: 'dashboard', label: 'Dashboard', icon: 'home', step: '' },
-    { view: 'ai', label: 'Planex AI', icon: 'sparkles', step: '1' },
+    { view: 'project', label: 'Project', icon: 'home', step: '1' },
     { view: 'scope', label: 'Scope', icon: 'ruler', step: '2' },
-    { view: 'docket', label: 'Design Docket', icon: 'docket', step: '3' },
-    { view: 'quotation', label: 'Quotation', icon: 'rupee', step: '4' },
-    { view: 'execution', label: 'Execution', icon: 'build', step: '5' }
+    { view: 'ai', label: 'Planex AI', icon: 'sparkles', step: '3' },
+    { view: 'docket', label: 'Design Docket', icon: 'docket', step: '4' },
+    { view: 'quotation', label: 'Quotation', icon: 'rupee', step: '5' },
+    { view: 'execution', label: 'Execution', icon: 'build', step: '6' }
   ];
 
-  const LABELS = { dashboard: 'Dashboard', ai: 'Planex AI', scope: 'Scope of Work', docket: 'Design Docket', quotation: 'Quotation', execution: 'Execution Dockets' };
+  const LABELS = { dashboard: 'Dashboard', project: 'Project', scope: 'Scope of Work', ai: 'Planex AI', docket: 'Design Docket', quotation: 'Quotation', execution: 'Execution Dockets' };
 
   function moduleFor(view) {
     const M = window.PlanexModules;
     switch (view) {
-      case 'ai': return M.PlanexAI;
+      case 'project': return M.Project;
       case 'scope': return M.Scope;
+      case 'ai': return M.PlanexAI;
       case 'docket': return M.DesignDocket;
       case 'quotation': return M.Quotation;
       case 'execution': return M.Execution;
@@ -164,20 +166,18 @@
     // project status card
     const pn = document.getElementById('psc-project-name');
     if (pn) pn.textContent = S.project.name;
-    const stageOrder = ['ideate', 'scope', 'docket', 'quotation', 'execution'];
-    const stageKey = S.project.stage === 'plan' ? 'docket' : S.project.stage;
-    let stageIdx = stageOrder.indexOf(stageKey);
-    if (S.scopeDoc && stageIdx < 1) stageIdx = 1;
-    if (S.selectedVendorId) stageIdx = Math.max(stageIdx, 3);
-    if (S.timeline.some(function (p) { return p.progress > 0; })) stageIdx = 4;
-    if (stageIdx < 0) stageIdx = 0;
-    const stageLabels = ['Ideate', 'Scope', 'Design Docket', 'Quotation', 'Execution'];
+    let stageIdx = 0;
+    if (S.floorplan && S.floorplan.validated) stageIdx = 1;
+    if (S.scopeDoc) stageIdx = 2;
+    if (S.selectedVendorId) stageIdx = 4;
+    if (S.timeline.some(function (p) { return p.progress > 0; })) stageIdx = 5;
+    const stageLabels = ['Project', 'Scope', 'Planex AI', 'Design Docket', 'Quotation', 'Execution'];
     const sl = document.getElementById('psc-stage-label');
     if (sl) sl.textContent = stageLabels[stageIdx];
     const ss = document.getElementById('psc-stage-step');
-    if (ss) ss.textContent = (stageIdx + 1) + ' / 5';
+    if (ss) ss.textContent = (stageIdx + 1) + ' / 6';
     const bar = document.getElementById('psc-bar-fill');
-    if (bar) bar.style.width = ((stageIdx + 1) / 5 * 100) + '%';
+    if (bar) bar.style.width = ((stageIdx + 1) / 6 * 100) + '%';
 
     // delegate nav clicks
     document.querySelectorAll('[data-nav]').forEach(function (el) {

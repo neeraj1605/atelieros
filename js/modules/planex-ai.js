@@ -60,6 +60,8 @@ window.PlanexModules.PlanexAI = (function () {
           <div class="chat-scroll" id="chat-scroll"></div>
 
           <div class="chat-composer">
+            ${groundingBanner()}
+            <div class="grounding-chips">${groundingChips()}</div>
             <div class="attachment-strip" id="attach-strip"></div>
             <div class="composer-box">
               <textarea class="composer-input" id="composer-input" rows="1"
@@ -291,7 +293,7 @@ window.PlanexModules.PlanexAI = (function () {
       await window.PlanexAIClient.send({
         message: text,
         attachments: attachments,
-        state: store().getGroundingState(),
+        state: buildGrounding(text),
         onDelta: (t) => { prose += t; setBubbleText(bubble, prose); },
         onPatch: (d) => { patched = true; store().applyContextPatch(d.patch, d.version); },
         onProposals: (list) => { proposals = list || []; },
@@ -567,6 +569,42 @@ window.PlanexModules.PlanexAI = (function () {
         }
       });
     });
+  }
+
+  function dataUrlToBase64(dataUrl) {
+    const comma = String(dataUrl || '').indexOf(',');
+    return comma >= 0 ? String(dataUrl).slice(comma + 1) : '';
+  }
+
+  // Grounding for each turn: the plan, the scope, the focused room and its photos.
+  function buildGrounding(text) {
+    const g = store().getGroundingState();
+    const focus = store().roomImagesFor(text);
+    g.focusRoom = focus.room;
+    g.roomImages = focus.images.map(function (im) {
+      return { room: focus.room, mime: im.mime || 'image/jpeg', data: dataUrlToBase64(im.dataUrl) };
+    });
+    return g;
+  }
+
+  function groundingChips() {
+    const S = store().state;
+    const fp = S.floorplan;
+    const doc = S.scopeDoc;
+    const chips = [];
+    chips.push(fp
+      ? `<button class="gchip ${fp.validated ? 'ok' : 'warn'}" data-nav="project">${ic('plan')} Plan ${fp.validated ? '✓ ' + S.rooms.length + ' rooms' : '· not validated'}</button>`
+      : `<button class="gchip warn" data-nav="project">${ic('plan')} Add floor plan</button>`);
+    chips.push(doc
+      ? `<button class="gchip ok" data-nav="scope">${ic('ruler')} Scope ✓ ${doc.packages.length} pkgs · ${store().formatCompact(doc.summary.total)}</button>`
+      : `<button class="gchip warn" data-nav="scope">${ic('ruler')} No scope yet — build it</button>`);
+    return chips.join('');
+  }
+
+  function groundingBanner() {
+    const fp = store().state.floorplan;
+    if (fp && fp.validated) return '';
+    return `<div class="grounding-banner">${ic('alert')} Validate your floor plan in <strong>Project</strong> so I can be specific to your rooms.</div>`;
   }
 
   return { render };

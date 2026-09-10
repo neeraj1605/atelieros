@@ -93,6 +93,20 @@ function buildRenderContext(context, grounding) {
   };
 }
 
+function normalizeRoomImages(input, env) {
+  if (!Array.isArray(input)) return [];
+  const maxBytes = Number(env.MAX_ATTACHMENT_BYTES || 4500000);
+  const out = [];
+  let total = 0;
+  for (const a of input.slice(0, 2)) {
+    if (!a || typeof a.data !== 'string' || !a.mime) continue;
+    total += Math.floor((a.data.length * 3) / 4);
+    if (total > maxBytes) break;
+    out.push({ kind: 'image', mime: String(a.mime).slice(0, 80), data: a.data });
+  }
+  return out;
+}
+
 async function requireSession(env, req) {
   const token = bearer(req);
   if (!token) return { ok: false, status: 401, error: 'missing_token' };
@@ -233,8 +247,11 @@ async function handleChat(request, env, origin) {
   }
 
   const grounding = body.state && typeof body.state === 'object' ? body.state : {};
-  const systemInstruction = buildSystemInstruction(context, grounding);
-  const contents = toGeminiContents(history, att.attachments);
+  const roomImages = normalizeRoomImages(grounding.roomImages, env);
+  const groundingForPrompt = Object.assign({}, grounding);
+  delete groundingForPrompt.roomImages;
+  const systemInstruction = buildSystemInstruction(context, groundingForPrompt);
+  const contents = toGeminiContents(history, (att.attachments || []).concat(roomImages));
   const extractionPrompt = buildExtractionPrompt(context, toTranscript(history));
 
   const encoder = new TextEncoder();
@@ -257,13 +274,30 @@ async function handleChat(request, env, origin) {
         let full = '';
         let tokens = 0;
         try {
-          const reply = await streamReply(env, systemInstruction, contents, (delta) => {
-            full += delta;
-            send('reply.delta', { text: delta });
-          });
-          full = reply.text || full;
-          tokens = reply.tokens || 0;
+          // Fall back across models if one is rate-limited (429).
+          const models = [env.GEMINI_FLASH_MODEL, env.GEMINI_LITE_MODEL].filter(Boolean);
+          let started = false;
+          let lastErr = null;
+          let done = false;
+          for (const m of models) {
+            try {
+              const reply = await streamReply(env, systemInstruction, contents, (delta) => {
+                started = true;
+                full += delta;
+                send('reply.delta', { text: delta });
+              }, m);
+              full = reply.text || full;
+              tokens = reply.tokens || 0;
+              done = true;
+              break;
+            } catch (e) {
+              lastErr = e;
+              if (started) break; // cannot retry once tokens have streamed
+            }
+          }
+          if (!done) throw lastErr || new Error('reply_failed');
         } catch (e) {
+          console.error('reply_failed', String(e && e.message ? e.message : e));
           send('error', { message: 'assistant_unavailable' });
         }
 

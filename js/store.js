@@ -55,7 +55,8 @@ window.PlanexStore = (function () {
       renders: [],
       scopeDoc: null,
       scopeQuality: 'standard',
-      floorplan: null
+      floorplan: null,
+      roomImages: {}
     };
     initial.project.projectType = 'ready';
     initial.contextVersions.push({
@@ -79,6 +80,7 @@ window.PlanexStore = (function () {
           if (!Array.isArray(state.renders)) state.renders = [];
           if (state.scopeDoc === undefined) state.scopeDoc = null;
           if (state.floorplan === undefined) state.floorplan = null;
+          if (!state.roomImages || typeof state.roomImages !== 'object') state.roomImages = {};
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (!state.context || !state.context.project) state.context = buildInitial().context;
@@ -101,6 +103,7 @@ window.PlanexStore = (function () {
         const stripped = JSON.parse(JSON.stringify(state));
         stripped.uploads = [];
         stripped.renders = [];
+        stripped.roomImages = {};
         stripped.chat = stripped.chat.map(function (m) {
           return Object.assign({}, m, { attachments: [] });
         });
@@ -243,7 +246,10 @@ window.PlanexStore = (function () {
       mime: (String(file.dataUrl || '').match(/^data:([^;]+)/) || [])[1] || 'image/jpeg',
       dataUrl: file.dataUrl,
       size: file.size || 0,
-      uploadedAt: new Date().toISOString()
+      uploadedAt: new Date().toISOString(),
+      validated: false,
+      validatedAt: null,
+      validation: null
     };
   }
 
@@ -258,6 +264,85 @@ window.PlanexStore = (function () {
   function clearFloorplan() {
     state.floorplan = null;
     commit();
+  }
+
+  function validateFloorplan(validation) {
+    if (!state.floorplan) return false;
+    state.floorplan.validated = true;
+    state.floorplan.validatedAt = new Date().toISOString();
+    state.floorplan.validation = validation || { checks: [], warnings: [] };
+    pushAudit('plan.validate', { warnings: ((validation && validation.warnings) || []).length });
+    commit();
+    return true;
+  }
+
+  function unvalidateFloorplan() {
+    if (state.floorplan && state.floorplan.validated) {
+      state.floorplan.validated = false;
+      state.floorplan.validatedAt = null;
+      commit();
+    }
+  }
+
+  /* ---------- Room images ---------- */
+  function addRoomImage(roomId, file) {
+    if (!roomId || !file || !file.dataUrl) return null;
+    if (!state.roomImages[roomId]) state.roomImages[roomId] = [];
+    const entry = {
+      id: 'img-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      name: file.name || 'room.jpg',
+      mime: (String(file.dataUrl).match(/^data:([^;]+)/) || [])[1] || 'image/jpeg',
+      dataUrl: file.dataUrl,
+      size: file.size || 0,
+      addedAt: new Date().toISOString()
+    };
+    state.roomImages[roomId].push(entry);
+    if (state.roomImages[roomId].length > 12) state.roomImages[roomId].shift();
+    commit();
+    return entry;
+  }
+
+  function removeRoomImage(roomId, id) {
+    if (!state.roomImages[roomId]) return;
+    state.roomImages[roomId] = state.roomImages[roomId].filter(function (i) { return i.id !== id; });
+    commit();
+  }
+
+  // Which room is the user talking about, based on their message.
+  function focusRoomFor(text) {
+    const t = String(text || '').toLowerCase();
+    if (!t) return null;
+    const names = state.rooms.map(function (r) { return r.name; });
+    for (let i = 0; i < names.length; i++) {
+      if (t.indexOf(names[i].toLowerCase()) >= 0) return names[i];
+    }
+    const generic = [
+      ['living', 'living'], ['dining', 'dining'], ['kitchen', 'kitchen'],
+      ['master bed', 'master bed'], ['bedroom', 'bedroom'], ['kids', 'kids'],
+      ['bath', 'bath'], ['study', 'study'], ['balcony', 'balcony'], ['foyer', 'foyer']
+    ];
+    for (let j = 0; j < generic.length; j++) {
+      if (t.indexOf(generic[j][0]) >= 0) {
+        const found = names.filter(function (n) { return n.toLowerCase().indexOf(generic[j][0]) >= 0; })[0];
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function roomImagesFor(text) {
+    const room = focusRoomFor(text);
+    if (!room) return { room: null, images: [] };
+    const byName = state.rooms.filter(function (r) { return r.name.toLowerCase() === room.toLowerCase(); })[0];
+    const key = byName ? byName.id : null;
+    let images = (key && state.roomImages[key]) ? state.roomImages[key] : [];
+    if (!images.length) {
+      const match = Object.keys(state.roomImages).filter(function (k) {
+        return k.toLowerCase().indexOf(room.toLowerCase()) >= 0;
+      })[0];
+      if (match) images = state.roomImages[match];
+    }
+    return { room: room, images: images.slice(-2) };
   }
 
   function removeUpload(id) {
@@ -440,13 +525,42 @@ window.PlanexStore = (function () {
 
   /* Grounding snapshot sent with each chat turn (client owns the BOQ/rooms). */
   function getGroundingState() {
+    const fp = state.floorplan;
+    const doc = state.scopeDoc;
     return {
       budget: state.project.budget,
       currency: state.currency,
       financials: getFinancials(),
       brief: state.context,
+      plan: fp ? {
+        validated: !!fp.validated,
+        name: fp.name,
+        rooms: state.rooms.map(function (r) {
+          return {
+            id: r.id,
+            name: r.name,
+            lengthM: r.length,
+            widthM: r.width,
+            areaSqft: Math.round((Number(r.length) || 0) * (Number(r.width) || 0) * 10.7639),
+            confidence: r.confidence || null,
+            source: r.source || 'user'
+          };
+        }),
+        totalSqft: Math.round(state.rooms.reduce(function (s, r) {
+          return s + (Number(r.length) || 0) * (Number(r.width) || 0) * 10.7639;
+        }, 0)),
+        warnings: (fp.validation && fp.validation.warnings) || []
+      } : null,
+      scope: doc ? {
+        projectType: doc.projectType,
+        quality: doc.quality,
+        summary: doc.summary,
+        packages: doc.packages.map(function (p) {
+          return { name: p.name, subtotal: p.subtotal, sharePct: p.sharePct };
+        })
+      } : null,
       rooms: state.rooms.map(function (r) { return { id: r.id, name: r.name, lengthM: r.length, widthM: r.width }; }),
-      boqLines: state.boq.map(function (b) {
+      boqLines: state.boq.slice(0, 60).map(function (b) {
         return { room: b.room, category: b.category, item: b.item, qty: b.qty, unit: b.unit, rate: b.rate };
       })
     };
@@ -479,6 +593,7 @@ window.PlanexStore = (function () {
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
     setFloorplan, clearFloorplan,
+    validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,
     reset
   };
 })();

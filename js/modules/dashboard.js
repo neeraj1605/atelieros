@@ -18,18 +18,20 @@ window.PlanexModules.Dashboard = (function () {
     const ic = window.PlanexIcons.get;
 
     const stages = [
-      { id: 'ideate', name: 'Ideate', desc: 'AI conversation', icon: 'chat' },
+      { id: 'project', name: 'Project', desc: 'Plan & photos', icon: 'home' },
       { id: 'scope', name: 'Scope', desc: 'Activities & BOQ', icon: 'ruler' },
+      { id: 'ai', name: 'Planex AI', desc: 'Design conversation', icon: 'chat' },
       { id: 'docket', name: 'Design Docket', desc: 'Plans & layout', icon: 'docket' },
       { id: 'quotation', name: 'Quotation', desc: 'Compare & finalize', icon: 'rupee' },
       { id: 'execution', name: 'Execution', desc: 'Track & QC', icon: 'build' }
     ];
 
     // derive the active stage for the rail from project progress
-    let activeRail = S.scopeDoc ? 1 : 0;
-    if (S.selectedVendorId) activeRail = 3;
-    const anyExec = S.timeline.some(p => p.progress > 0);
-    if (anyExec) activeRail = 4;
+    let activeRail = 0;
+    if (S.floorplan && S.floorplan.validated) activeRail = 1;
+    if (S.scopeDoc) activeRail = 2;
+    if (S.selectedVendorId) activeRail = 4;
+    if (S.timeline.some(p => p.progress > 0)) activeRail = 5;
 
     const doneMilestones = S.timeline.reduce((s, p) => s + p.milestones.filter(m => m.done).length, 0);
     const totalMilestones = S.timeline.reduce((s, p) => s + p.milestones.length, 0);
@@ -46,8 +48,9 @@ window.PlanexModules.Dashboard = (function () {
     }).join('');
 
     const moduleCards = [
-      { view: 'ai', icon: 'chat', title: 'Planex AI', desc: 'Chat, upload images & site plans, and shape the design.' },
+      { view: 'project', icon: 'home', title: 'Project', desc: 'Floor plan, validation and room photos.' },
       { view: 'scope', icon: 'ruler', title: 'Scope of Work', desc: 'Area, activities, package split and the BOQ.' },
+      { view: 'ai', icon: 'chat', title: 'Planex AI', desc: 'Contextual design conversation — grounded in your plan and scope.' },
       { view: 'docket', icon: 'docket', title: 'Design Docket', desc: 'Floorplan, furniture layout and detailed BOQ.' },
       { view: 'quotation', icon: 'rupee', title: 'Quotation', desc: 'Compare vendor quotes with locked specifications.' },
       { view: 'execution', icon: 'build', title: 'Execution Dockets', desc: 'Timeline, milestones and quality checks.' }
