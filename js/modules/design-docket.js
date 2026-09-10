@@ -9,6 +9,39 @@ window.PlanexModules = window.PlanexModules || {};
 window.PlanexModules.DesignDocket = (function () {
   let selectedId = 'furniture';
   let currentUnits = [];
+  let currentLayoutRooms = [];
+
+  function layoutKind(d) {
+    if (d.id === 'lighting') return 'lighting';
+    if (d.id === 'electrical') return 'electrical';
+    if (d.id === 'plumbing') return 'plumbing';
+    return null;
+  }
+  function layoutRooms(kind) {
+    const rooms = store().state.rooms || [];
+    if (kind === 'plumbing') {
+      return rooms.filter(function (r) { return /bath|wc|toilet|kitchen|utility|balcony/i.test(r.name); });
+    }
+    return rooms;
+  }
+  function layoutSection(d) {
+    const kind = layoutKind(d);
+    if (!kind || !window.PlanexLayoutEngine) return '';
+    const rooms = layoutRooms(kind);
+    if (!rooms.length) return '';
+    currentLayoutRooms = rooms;
+    const title = kind === 'lighting' ? 'Lighting Layouts' : kind === 'electrical' ? 'Electrical Layouts' : 'Sanitary Layouts';
+    return `
+      <div class="docket-section">
+        <div class="docket-section-title">${title}</div>
+        <p class="muted text-sm" style="margin-bottom:10px;">Indicative ${kind} layout per room — symbols keyed to this docket's schedule. ${esc(window.PlanexLayoutEngine.legend(kind))}</p>
+        <div class="detail-grid">
+          ${rooms.map(function (r, i) {
+            return `<div class="detail-card"><div class="detail-head">${esc(r.name)}</div><div class="detail-canvas"><canvas data-lay="${kind}:${i}"></canvas></div></div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
 
   function store() { return window.PlanexStore; }
   function ic(n) { return window.PlanexIcons.get(n); }
@@ -89,6 +122,11 @@ window.PlanexModules.DesignDocket = (function () {
       const u = currentUnits[Number(cv.getAttribute('data-sect'))];
       if (u) window.PlanexDetailEngine.drawSection(cv, u);
     });
+    container.querySelectorAll('[data-lay]').forEach(function (cv) {
+      const p = cv.getAttribute('data-lay').split(':');
+      const room = currentLayoutRooms[Number(p[1])];
+      if (room && window.PlanexLayoutEngine) window.PlanexLayoutEngine.draw(cv, p[0], room);
+    });
   }
 
   function documentView(d) {
@@ -114,6 +152,7 @@ window.PlanexModules.DesignDocket = (function () {
         </div>
         ${d.sections.map(function (s) { return sectionTable(d, s); }).join('')}
         ${shopDrawings(d)}
+        ${layoutSection(d)}
         ${d.notes && d.notes.length ? `
           <div class="docket-section">
             <div class="docket-section-title">Expert Notes</div>
