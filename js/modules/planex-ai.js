@@ -28,27 +28,32 @@ window.PlanexModules.PlanexAI = (function () {
   }
 
   /* ---------------- Render / bind ---------------- */
-  function render(container) {
+  function render(container) { renderIn(container, {}); }
+
+  function renderIn(container, opts) {
+    opts = opts || {};
+    const compact = !!opts.compact;
     const S = store().state;
 
     container.innerHTML = `
-      <div class="view-inner">
+      <div class="${compact ? 'copilot-inner' : 'view-inner'}">
+        ${compact ? '' : `
         <div class="module-header anim">
           <div>
-            <h1 class="serif">Planex AI</h1>
+            <h1 class="serif">Copilot</h1>
             <p>Your interior design assistant. I'll reply, show you renders as the design takes shape, and keep the brief evolving.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm" id="ai-add-plan">${ic('upload')} Upload Site Plan</button>
             <button class="btn btn-secondary btn-sm" id="ai-add-image">${ic('image')} Upload Image</button>
           </div>
-        </div>
+        </div>`}
 
-        <div class="chat-wrap anim anim-1">
+        <div class="chat-wrap ${compact ? 'chat-wrap-compact' : 'anim anim-1'}">
           <div class="chat-head">
             <div class="chat-avatar">${ic('sparkles')}</div>
             <div>
-              <div class="chat-head-name">Planex AI Assistant</div>
+              <div class="chat-head-name">Planex Copilot</div>
               <div class="chat-head-status"><span class="status-pulse"></span> ${brainLabel()}</div>
             </div>
             <div class="chat-head-actions">
@@ -74,8 +79,7 @@ window.PlanexModules.PlanexAI = (function () {
               </div>
             </div>
             <div class="composer-hint">
-              <span>Renders appear automatically at design moments — or tap the wand to ask for one.</span>
-              <span style="margin-left:auto;">${S.boq.length} BOQ items tracked</span>
+              <span>Renders appear automatically at design moments.</span>
             </div>
           </div>
         </div>
@@ -96,33 +100,40 @@ window.PlanexModules.PlanexAI = (function () {
     const fileImage = container.querySelector('#file-image');
     const filePlan = container.querySelector('#file-plan');
 
-    const clickImage = () => fileImage.click();
-    const clickPlan = () => filePlan.click();
+    const clickImage = () => { if (fileImage) fileImage.click(); };
+    const clickPlan = () => { if (filePlan) filePlan.click(); };
 
-    container.querySelector('#ai-add-image').addEventListener('click', clickImage);
-    container.querySelector('#tool-image').addEventListener('click', clickImage);
-    container.querySelector('#ai-add-plan').addEventListener('click', clickPlan);
-    container.querySelector('#tool-plan').addEventListener('click', clickPlan);
+    const addImage = container.querySelector('#ai-add-image');
+    const addPlan = container.querySelector('#ai-add-plan');
+    const toolImage = container.querySelector('#tool-image');
+    const toolPlan = container.querySelector('#tool-plan');
+    const toolRender = container.querySelector('#tool-render');
+    if (addImage) addImage.addEventListener('click', clickImage);
+    if (toolImage) toolImage.addEventListener('click', clickImage);
+    if (addPlan) addPlan.addEventListener('click', clickPlan);
+    if (toolPlan) toolPlan.addEventListener('click', clickPlan);
 
     // Wand = a conversational request for a render (no separate feature path).
-    container.querySelector('#tool-render').addEventListener('click', () => {
+    if (toolRender) toolRender.addEventListener('click', () => {
       const base = (input.value || '').trim();
       input.value = '';
       input.style.height = 'auto';
       sendText(base ? (base + ' — can you show me what this would look like?') : 'Can you show me what this would look like?', []);
     });
 
-    fileImage.addEventListener('change', (e) => handleFiles(e.target.files, 'image'));
-    filePlan.addEventListener('change', (e) => handleFiles(e.target.files, 'plan'));
+    if (fileImage) fileImage.addEventListener('change', (e) => handleFiles(e.target.files, 'image'));
+    if (filePlan) filePlan.addEventListener('change', (e) => handleFiles(e.target.files, 'plan'));
 
-    send.addEventListener('click', submit);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
-    });
-    input.addEventListener('input', () => {
-      input.style.height = 'auto';
-      input.style.height = Math.min(140, input.scrollHeight) + 'px';
-    });
+    if (send) send.addEventListener('click', submit);
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+      });
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(140, input.scrollHeight) + 'px';
+      });
+    }
 
     container.querySelector('#ai-brief').addEventListener('click', showBrief);
 
@@ -607,5 +618,5 @@ window.PlanexModules.PlanexAI = (function () {
     return `<div class="grounding-banner">${ic('alert')} Validate your floor plan in <strong>Project</strong> so I can be specific to your rooms.</div>`;
   }
 
-  return { render };
+  return { render: render, renderIn: renderIn };
 })();

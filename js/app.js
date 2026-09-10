@@ -94,7 +94,6 @@
     { view: 'dashboard', label: 'Home', icon: 'home', step: '' },
     { view: 'project', label: 'Project', icon: 'plan', step: '1' },
     { view: 'scope', label: 'Scope', icon: 'ruler', step: '2' },
-    { view: 'ai', label: 'Copilot', icon: 'sparkles', step: '' },
     { view: 'docket', label: 'Dockets', icon: 'docket', step: '3' },
     { view: 'costing', label: 'Costing', icon: 'rupee', step: '4' },
     { view: 'quotation', label: 'Buy', icon: 'rupee', step: '5' },
@@ -130,6 +129,7 @@
   }
 
   function navigate(view) {
+    if (view === 'ai') { if (window.PlanexCopilot) window.PlanexCopilot.open(); return; }
     window.PlanexStore.setView(view);
     location.hash = view;
     renderView();
@@ -291,6 +291,9 @@
     });
 
     renderView();
+
+    // Ambient Copilot drawer (available on every screen)
+    if (window.PlanexCopilot) window.PlanexCopilot.mount();
   }
 
   window.PlanexApp = {
