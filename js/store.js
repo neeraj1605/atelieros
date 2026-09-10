@@ -57,7 +57,8 @@ window.PlanexStore = (function () {
       scopeQuality: 'standard',
       floorplan: null,
       roomImages: {},
-      docketSet: null
+      docketSet: null,
+      scopeConfirmed: false
     };
     initial.project.projectType = 'ready';
     initial.contextVersions.push({
@@ -83,6 +84,7 @@ window.PlanexStore = (function () {
           if (state.floorplan === undefined) state.floorplan = null;
           if (!state.roomImages || typeof state.roomImages !== 'object') state.roomImages = {};
           if (state.docketSet === undefined) state.docketSet = null;
+          if (typeof state.scopeConfirmed !== 'boolean') state.scopeConfirmed = false;
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (!state.context || !state.context.project) state.context = buildInitial().context;
@@ -525,6 +527,46 @@ window.PlanexStore = (function () {
     return true;
   }
 
+  /* ---------- Status & journey ---------- */
+  function confirmScope() {
+    if (!state.scopeDoc) return false;
+    state.scopeConfirmed = true;
+    pushAudit('scope.confirm', { packages: state.scopeDoc.packages.length });
+    commit();
+    return true;
+  }
+
+  function statusOf(artifact) {
+    if (artifact === 'plan') {
+      const fp = state.floorplan;
+      return fp ? (fp.validated ? 'validated' : 'draft') : 'draft';
+    }
+    if (artifact === 'scope') {
+      return state.scopeDoc ? (state.scopeConfirmed ? 'validated' : 'indicative') : 'draft';
+    }
+    if (artifact === 'costing') {
+      return (state.boq && state.boq.length) ? 'firm' : 'draft';
+    }
+    if (artifact === 'dockets') {
+      const set = state.docketSet;
+      if (!set) return 'draft';
+      return set.dockets.some(function (d) { return d.ai; }) ? 'enriched' : 'built';
+    }
+    return 'draft';
+  }
+
+  function nextAction() {
+    const fp = state.floorplan;
+    if (!fp) return { label: 'Upload floor plan', view: 'project' };
+    if (!fp.validated) return { label: 'Validate floor plan', view: 'project' };
+    if (!state.scopeDoc) return { label: 'Build the scope', view: 'scope' };
+    if (!state.scopeConfirmed) return { label: 'Confirm the scope', view: 'scope' };
+    if (!state.boq || !state.boq.length) return { label: 'Price the scope', view: 'costing' };
+    if (!state.docketSet) return { label: 'Generate dockets', view: 'docket' };
+    if (!state.selectedVendorId) return { label: 'Send RFQ to vendors', view: 'quotation' };
+    return { label: 'Track execution', view: 'execution' };
+  }
+
   /* Apply a proposal the user explicitly confirmed. */
   function applyProposal(proposal) {
     if (!proposal || !proposal.type) return false;
@@ -643,6 +685,7 @@ window.PlanexStore = (function () {
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
+    confirmScope, statusOf, nextAction,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,
     reset

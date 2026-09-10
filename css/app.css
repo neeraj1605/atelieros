@@ -750,6 +750,53 @@
 .detail-canvas { margin-bottom: 8px; }
 .detail-canvas canvas { display: block; width: 100%; height: auto; }
 
+/* ---------- Home: stepper + attention ---------- */
+.stepper { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0 8px; }
+.step {
+  display: flex; align-items: center; gap: 8px; border: 1px solid var(--border);
+  background: var(--surface); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
+}
+.step-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-inset); display: flex; align-items: center; justify-content: center; font-size: 11px; }
+.step.done { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.step.done .step-dot { background: var(--success); color: #fff; }
+.step.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+.step.active .step-dot { background: var(--accent-contrast); color: var(--accent); }
+
+.attention-list { display: flex; flex-direction: column; gap: 8px; }
+.attention-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md);
+  padding: 12px 14px; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease;
+}
+.attention-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.attention-ico { width: 34px; height: 34px; border-radius: var(--r-sm); background: var(--bg-inset); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex-shrink: 0; }
+.attention-ico svg { width: 17px; height: 17px; }
+.attention-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.attention-title { font-size: 13.5px; font-weight: 650; }
+.attention-desc { font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Scope matrix ---------- */
+.mx-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.mx-table th, .mx-table td { padding: 7px 8px; text-align: center; border-bottom: 1px solid var(--border); }
+.mx-table thead th {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+  white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); height: 92px; vertical-align: bottom;
+}
+.mx-table th.mx-room { text-align: left; writing-mode: horizontal-tb; transform: none; height: auto; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--text); white-space: nowrap; }
+.mx-cell { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 13px; line-height: 1; }
+.mx-cell.in { background: var(--success-bg); color: var(--success); border-color: transparent; }
+.mx-cell.out { background: var(--bg-inset); color: var(--text-muted); }
+.mx-na { color: var(--text-muted); }
+.mx-projectwide { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+.mx-pill { border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); padding: 5px 11px; font-size: 11.5px; font-weight: 600; cursor: pointer; color: var(--text-secondary); }
+.mx-pill.in { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.mx-pill.out { color: var(--text-muted); text-decoration: line-through; }
+
+.inc-room { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 10px 0 4px; }
+.inc-item { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 4px 6px; border-radius: var(--r-sm); }
+.inc-item:hover { background: var(--bg-inset); }
+
 /* ---------- Print ---------- */@media print {
   .sidebar,
   .sidebar-overlay,

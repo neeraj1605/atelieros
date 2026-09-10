@@ -175,7 +175,7 @@ window.PlanexModules.DesignDocket = (function () {
 
         ${floorplanSection()}
         ${rendersSection()}
-        ${boqSection()}
+        ${costingLink()}
       </div>
     `;
 
@@ -211,27 +211,14 @@ window.PlanexModules.DesignDocket = (function () {
       </div>`;
   }
 
-  function boqSection() {
-    const S = store().state;
-    const fin = store().getFinancials();
-    const rows = S.boq.map(function (b) {
-      return `<tr><td><div class="boq-cat">${esc(b.category)}</div><div style="font-weight:600;">${esc(b.item)}</div></td>
-        <td class="num">${b.qty}</td><td class="num muted">${esc(b.unit)}</td>
-        <td class="num">${money(b.rate)}</td><td class="num bold">${money(b.qty * b.rate)}</td></tr>`;
-    }).join('');
+  function costingLink() {
     return `
-      <div class="section-label anim anim-3">Bill of Quantities</div>
-      <div class="card anim anim-3" style="padding:0;overflow:hidden;">
-        <div style="overflow-x:auto;">
-          <table class="boq-table">
-            <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="5" class="muted" style="padding:18px;">Add scope items to the BOQ from the Scope tab.</td></tr>'}</tbody>
-            <tfoot>
-              <tr><td colspan="4" class="num muted">Subtotal</td><td class="num">${money(fin.subtotal)}</td></tr>
-              <tr><td colspan="4" class="num muted">GST (18%)</td><td class="num">${money(fin.gst)}</td></tr>
-              <tr><td colspan="4" class="num">Total Estimate</td><td class="num" style="font-size:17px;">${money(fin.total)}</td></tr>
-            </tfoot>
-          </table>
+      <div class="section-label anim anim-3">Costing</div>
+      <div class="card anim anim-3">
+        <div class="card-head">
+          <div><div class="card-title">Costing &amp; BOQ</div>
+          <div class="card-sub">Line-item costing lives in its own tab so dockets stay about execution.</div></div>
+          <button class="btn btn-primary btn-sm" id="dk-costing">${ic('rupee')} Open Costing</button>
         </div>
       </div>`;
   }
@@ -239,6 +226,9 @@ window.PlanexModules.DesignDocket = (function () {
   function bind(container) {
     const gen = container.querySelector('#dk-generate');
     if (gen) gen.addEventListener('click', generateDockets);
+
+    const costingBtn = container.querySelector('#dk-costing');
+    if (costingBtn) costingBtn.addEventListener('click', function () { window.PlanexApp.navigate('costing'); });
 
     const printAll = container.querySelector('#dk-print-all');
     if (printAll) printAll.addEventListener('click', function () { window.print(); });

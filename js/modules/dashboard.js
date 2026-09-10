@@ -1,5 +1,6 @@
 /* ============================================================
-   Planex AI — Dashboard Module
+   Planex AI — Home
+   Status -> next action -> attention. No duplicate rails/cards.
    ============================================================ */
 window.PlanexModules = window.PlanexModules || {};
 
@@ -14,52 +15,58 @@ window.PlanexModules.Dashboard = (function () {
     const store = window.PlanexStore;
     const S = store.state;
     const fin = store.getFinancials();
-    const money = (n) => store.formatMoney(n);
     const ic = window.PlanexIcons.get;
 
-    const stages = [
-      { id: 'project', name: 'Project', desc: 'Plan & photos', icon: 'home' },
-      { id: 'scope', name: 'Scope', desc: 'Activities & BOQ', icon: 'ruler' },
-      { id: 'ai', name: 'Planex AI', desc: 'Design conversation', icon: 'chat' },
-      { id: 'docket', name: 'Design Docket', desc: 'Plans & layout', icon: 'docket' },
-      { id: 'quotation', name: 'Quotation', desc: 'Compare & finalize', icon: 'rupee' },
-      { id: 'execution', name: 'Execution', desc: 'Track & QC', icon: 'build' }
+    const steps = [
+      { label: 'Project', view: 'project', done: !!(S.floorplan && S.floorplan.validated) },
+      { label: 'Scope', view: 'scope', done: !!S.scopeConfirmed },
+      { label: 'Dockets', view: 'docket', done: !!S.docketSet },
+      { label: 'Costing', view: 'costing', done: !!(S.boq && S.boq.length) },
+      { label: 'Buy', view: 'quotation', done: !!S.selectedVendorId },
+      { label: 'Execute', view: 'execution', done: S.timeline.every(function (p) { return p.status === 'done'; }) }
     ];
+    const doneCount = steps.filter(function (s) { return s.done; }).length;
+    const pct = Math.round((doneCount / steps.length) * 100);
+    const next = store.nextAction();
 
-    // derive the active stage for the rail from project progress
-    let activeRail = 0;
-    if (S.floorplan && S.floorplan.validated) activeRail = 1;
-    if (S.scopeDoc) activeRail = 2;
-    if (S.selectedVendorId) activeRail = 4;
-    if (S.timeline.some(p => p.progress > 0)) activeRail = 5;
+    // attention: blocking first, then deadlines/budget/issues
+    const attention = [];
+    if (!S.floorplan) attention.push({ icon: 'plan', title: 'Upload your floor plan', desc: 'Start with the plan and room photos.', view: 'project', tag: 'Blocking' });
+    else if (!S.floorplan.validated) attention.push({ icon: 'alert', title: 'Validate your floor plan', desc: 'Confirm rooms and dimensions so advice is specific.', view: 'project', tag: 'Blocking' });
+    if (!S.scopeDoc) attention.push({ icon: 'ruler', title: 'Build the scope of work', desc: 'Room-by-room, package-by-package.', view: 'scope', tag: 'Blocking' });
+    else if (!S.scopeConfirmed) attention.push({ icon: 'check', title: 'Confirm the scope', desc: 'Lock what is included before pricing.', view: 'scope', tag: 'Blocking' });
+    if (S.scopeDoc && !(S.boq && S.boq.length)) attention.push({ icon: 'rupee', title: 'Price the scope', desc: 'Create the firm BOQ in Costing.', view: 'costing', tag: 'Next' });
+    if (S.boq && S.boq.length && !S.docketSet) attention.push({ icon: 'docket', title: 'Generate dockets', desc: 'Execution documents for agencies and suppliers.', view: 'docket', tag: 'Next' });
+    if (S.docketSet && !S.selectedVendorId) attention.push({ icon: 'rupee', title: 'Send RFQ to vendors', desc: 'Get quotes against the BOQ.', view: 'quotation', tag: 'Next' });
+    if (!fin.withinBudget) attention.push({ icon: 'alert', title: store.formatCompact(Math.abs(fin.variance)) + ' over budget', desc: 'Review value engineering in Costing.', view: 'costing', tag: 'Watch' });
+    const openQc = S.qc.filter(function (q) { return q.status !== 'Resolved'; }).length;
+    if (openQc) attention.push({ icon: 'check', title: openQc + ' QC item(s) open', desc: 'Track snags through to closure.', view: 'execution', tag: 'Watch' });
 
-    const doneMilestones = S.timeline.reduce((s, p) => s + p.milestones.filter(m => m.done).length, 0);
-    const totalMilestones = S.timeline.reduce((s, p) => s + p.milestones.length, 0);
-    const openQc = S.qc.filter(q => q.status !== 'Resolved').length;
+    const msDone = S.timeline.reduce(function (s, p) { return s + p.milestones.filter(function (m) { return m.done; }).length; }, 0);
+    const msTotal = S.timeline.reduce(function (s, p) { return s + p.milestones.length; }, 0);
+    const timelinePct = msTotal ? Math.round((msDone / msTotal) * 100) : 0;
 
-    const stageRail = stages.map((st, i) => {
-      const cls = i < activeRail ? 'done' : i === activeRail ? 'active' : '';
+    const stepper = steps.map(function (s, i) {
+      const active = !s.done && steps.slice(0, i).every(function (x) { return x.done; });
       return `
-        <div class="stage-node ${cls}">
-          <div class="stage-bubble">${ic(st.icon)}</div>
-          <div class="stage-name">${st.name}</div>
-          <div class="stage-desc">${st.desc}</div>
-        </div>`;
+        <button class="step ${s.done ? 'done' : ''} ${active ? 'active' : ''}" data-nav="${s.view}">
+          <span class="step-dot">${s.done ? '✓' : i + 1}</span>
+          <span class="step-label">${esc(s.label)}</span>
+        </button>`;
     }).join('');
 
-    const moduleCards = [
-      { view: 'project', icon: 'home', title: 'Project', desc: 'Floor plan, validation and room photos.' },
-      { view: 'scope', icon: 'ruler', title: 'Scope of Work', desc: 'Area, activities, package split and the BOQ.' },
-      { view: 'ai', icon: 'chat', title: 'Planex AI', desc: 'Contextual design conversation — grounded in your plan and scope.' },
-      { view: 'docket', icon: 'docket', title: 'Design Docket', desc: 'Floorplan, furniture layout and detailed BOQ.' },
-      { view: 'quotation', icon: 'rupee', title: 'Quotation', desc: 'Compare vendor quotes with locked specifications.' },
-      { view: 'execution', icon: 'build', title: 'Execution Dockets', desc: 'Timeline, milestones and quality checks.' }
-    ].map(c => `
-      <button class="module-card" data-nav="${c.view}">
-        <div class="module-ico">${ic(c.icon)}</div>
-        <h3>${c.title}</h3>
-        <p>${c.desc}</p>
-      </button>`).join('');
+    const cards = attention.slice(0, 5).map(function (a) {
+      const cls = a.tag === 'Blocking' ? 'danger' : a.tag === 'Watch' ? 'warning' : 'info';
+      return `
+        <button class="attention-card" data-nav="${a.view}">
+          <span class="attention-ico">${ic(a.icon)}</span>
+          <span class="attention-body">
+            <span class="attention-title">${esc(a.title)}</span>
+            <span class="attention-desc">${esc(a.desc)}</span>
+          </span>
+          <span class="badge badge-${cls === 'danger' ? 'danger' : cls === 'warning' ? 'warning' : 'info'}">${esc(a.tag)}</span>
+        </button>`;
+    }).join('');
 
     container.innerHTML = `
       <div class="view-inner">
@@ -67,60 +74,44 @@ window.PlanexModules.Dashboard = (function () {
           <div class="hero-mesh"></div>
           <div class="hero-inner">
             <div>
-              <div class="hero-eyebrow">${ic('sparkles')} Welcome home</div>
+              <div class="hero-eyebrow">${ic('home')} ${esc(S.project.spaceType || 'Home interior')} · ${esc(S.project.location || '')}</div>
               <h1 class="hero-title">${esc(S.project.name)}</h1>
-              <p class="hero-sub">${esc(S.project.tagline)} • ${esc(S.project.location)}</p>
+              <p class="hero-sub">${pct}% through the journey · ${esc(next.label)} is next.</p>
+              <div style="margin-top:16px;">
+                <button class="btn btn-lg" data-nav="${next.view}" style="background:#fff;color:#18181b;">${esc(next.label)} ${ic('arrowRight')}</button>
+              </div>
             </div>
             <div class="hero-stats">
-              <div class="hero-stat">
-                <div class="hs-val">${store.formatCompact(fin.total)}</div>
-                <div class="hs-label">Est. Cost</div>
-              </div>
-              <div class="hero-stat">
-                <div class="hs-val">${store.formatCompact(fin.budget)}</div>
-                <div class="hs-label">Budget</div>
-              </div>
-              <div class="hero-stat">
-                <div class="hs-val">${Math.round((doneMilestones / (totalMilestones || 1)) * 100)}%</div>
-                <div class="hs-label">Progress</div>
-              </div>
+              <div class="hero-stat"><div class="hs-val">${store.formatCompact(fin.total)}</div><div class="hs-label">Costing</div></div>
+              <div class="hero-stat"><div class="hs-val">${pct}%</div><div class="hs-label">Complete</div></div>
             </div>
           </div>
         </section>
 
-        <div class="section-label anim anim-1">Your Journey</div>
-        <div class="stage-rail anim anim-1">${stageRail}</div>
+        <div class="stepper anim anim-1">${stepper}</div>
 
-        <div class="section-label anim anim-2">Workspace</div>
-        <div class="module-grid anim anim-2">${moduleCards}</div>
+        <div class="section-label anim anim-2">Needs your attention</div>
+        <div class="attention-list anim anim-2">
+          ${cards || '<div class="card"><p class="muted text-sm">All clear — nothing needs you right now.</p></div>'}
+        </div>
 
-        <div class="section-label anim anim-3">At a Glance</div>
+        <div class="section-label anim anim-3">At a glance</div>
         <div class="stat-grid anim anim-3">
           <div class="stat-card">
-            <div class="stat-head"><span>Estimated Cost</span>${ic('rupee')}</div>
-            <div class="stat-val">${store.formatCompact(fin.total)}</div>
-            <div class="stat-foot">${fin.withinBudget ? 'Within budget' : 'Over budget'} • incl. 18% GST</div>
+            <div class="stat-head"><span>Budget</span>${ic('rupee')}</div>
+            <div class="stat-val">${fin.withinBudget ? 'On track' : 'Over'}</div>
+            <div class="stat-foot">${store.formatCompact(fin.total)} of ${store.formatCompact(S.project.budget)} · ${fin.utilization}%</div>
           </div>
           <div class="stat-card">
-            <div class="stat-head"><span>BOQ Items</span>${ic('docket')}</div>
-            <div class="stat-val">${S.boq.length}</div>
-            <div class="stat-foot">Across ${S.rooms.length} rooms</div>
+            <div class="stat-head"><span>Timeline</span>${ic('calendar')}</div>
+            <div class="stat-val">${timelinePct}%</div>
+            <div class="stat-foot">${msDone}/${msTotal} milestones complete</div>
           </div>
           <div class="stat-card">
-            <div class="stat-head"><span>Open QC Items</span>${ic('check')}</div>
+            <div class="stat-head"><span>Open issues</span>${ic('alert')}</div>
             <div class="stat-val">${openQc}</div>
             <div class="stat-foot">${S.qc.length - openQc} resolved</div>
           </div>
-        </div>
-
-        <div class="section-label anim anim-4">Next Step</div>
-        <div class="card card-pad-lg anim anim-4" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
-          <div class="chat-avatar" style="width:46px;height:46px;">${ic('sparkles')}</div>
-          <div style="flex:1;min-width:220px;">
-            <div style="font-size:15px;font-weight:650;">Continue the conversation with Planex AI</div>
-            <div class="muted text-sm" style="margin-top:2px;">Upload your site plan or photos, and I'll build your design docket automatically.</div>
-          </div>
-          <button class="btn btn-primary" data-nav="ai">${ic('chat')} Open Planex AI</button>
         </div>
       </div>
     `;
