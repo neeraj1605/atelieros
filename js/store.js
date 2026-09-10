@@ -54,7 +54,8 @@ window.PlanexStore = (function () {
       audit: [],
       renders: [],
       scopeDoc: null,
-      scopeQuality: 'standard'
+      scopeQuality: 'standard',
+      floorplan: null
     };
     initial.project.projectType = 'ready';
     initial.contextVersions.push({
@@ -77,6 +78,7 @@ window.PlanexStore = (function () {
           if (!Array.isArray(state.audit)) state.audit = [];
           if (!Array.isArray(state.renders)) state.renders = [];
           if (state.scopeDoc === undefined) state.scopeDoc = null;
+          if (state.floorplan === undefined) state.floorplan = null;
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (!state.context || !state.context.project) state.context = buildInitial().context;
@@ -227,7 +229,34 @@ window.PlanexStore = (function () {
 
   function addUpload(file) {
     state.uploads.push(file);
-    if (file.kind === 'plan') { state.context.notes += ' Site plan uploaded.'; }
+    if (file.kind === 'plan') {
+      setFloorplanInternal(file);
+      state.context.notes += ' Site plan uploaded.';
+    }
+    commit();
+  }
+
+  function setFloorplanInternal(file) {
+    state.floorplan = {
+      id: file.id || ('fp-' + Date.now()),
+      name: file.name || 'floor-plan',
+      mime: (String(file.dataUrl || '').match(/^data:([^;]+)/) || [])[1] || 'image/jpeg',
+      dataUrl: file.dataUrl,
+      size: file.size || 0,
+      uploadedAt: new Date().toISOString()
+    };
+  }
+
+  // The floor plan is a shared project asset (Scope + Design Docket).
+  function setFloorplan(file) {
+    if (!file || !file.dataUrl) return null;
+    setFloorplanInternal(file);
+    commit();
+    return state.floorplan;
+  }
+
+  function clearFloorplan() {
+    state.floorplan = null;
     commit();
   }
 
@@ -449,6 +478,7 @@ window.PlanexStore = (function () {
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
+    setFloorplan, clearFloorplan,
     reset
   };
 })();

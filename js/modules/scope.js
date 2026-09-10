@@ -83,6 +83,28 @@ window.PlanexModules.Scope = (function () {
       <div style="margin-top:10px;"><button class="btn btn-ghost btn-sm" id="scope-add-room">${ic('plus')} Add room</button></div>`;
   }
 
+  function floorplanCard(S) {
+    const fp = S.floorplan;
+    return `
+        <div class="section-label anim anim-1">Floor Plan</div>
+        <div class="card anim anim-1">
+          <div class="card-head">
+            <div>
+              <div class="card-title">${fp ? esc(fp.name) : 'Upload your floor plan'}</div>
+              <div class="card-sub">${fp ? 'Shared with the Design Docket' : 'We read rooms and sizes from it to build the scope'}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" id="fp-upload">${ic('upload')} ${fp ? 'Replace' : 'Upload'}</button>
+              ${fp ? `<button class="btn btn-primary btn-sm" id="fp-read">${ic('sparkles')} Read rooms (AI)</button>` : ''}
+            </div>
+          </div>
+          ${fp
+            ? `<div class="plan-preview"><img src="${fp.dataUrl}" alt="Floor plan" data-lightbox="${fp.dataUrl}"></div>`
+            : `<p class="muted text-sm">Upload a photo or image of the floor plan. It appears here and in the Design Docket.</p>`}
+          <input type="file" id="fp-file" accept="image/*" hidden>
+        </div>`;
+  }
+
   function splitHtml(doc) {
     if (!doc || !doc.packages.length) return '';
     const bar = doc.packages.map(function (p) {
@@ -137,6 +159,8 @@ window.PlanexModules.Scope = (function () {
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">${typeButtons}</div>
         </div>
+
+        ${floorplanCard(S)}
 
         ${doc ? `
         <div class="section-label anim anim-1">Area Schedule</div>
@@ -210,6 +234,30 @@ window.PlanexModules.Scope = (function () {
 
     const print = container.querySelector('#scope-print');
     if (print) print.addEventListener('click', function () { window.print(); });
+
+    // floor plan
+    const fpUpload = container.querySelector('#fp-upload');
+    const fpFile = container.querySelector('#fp-file');
+    if (fpUpload && fpFile) {
+      fpUpload.addEventListener('click', function () { fpFile.click(); });
+      fpFile.addEventListener('change', function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) { window.PlanexUI.toast('File too large (max 4 MB).'); return; }
+        const reader = new FileReader();
+        reader.onload = function () {
+          store().setFloorplan({ name: file.name, dataUrl: reader.result, size: file.size });
+          window.PlanexUI.toast('Floor plan uploaded.');
+          window.PlanexApp.renderView();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    const fpRead = container.querySelector('#fp-read');
+    if (fpRead) fpRead.addEventListener('click', readRoomsFromPlan);
+    container.querySelectorAll('[data-lightbox]').forEach(function (el) {
+      el.addEventListener('click', function () { window.PlanexUI.lightbox(el.getAttribute('data-lightbox')); });
+    });
 
     container.querySelectorAll('[data-scope-pkg-boq]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -313,6 +361,50 @@ window.PlanexModules.Scope = (function () {
       window.PlanexApp.renderView();
       window.PlanexUI.toast('Room added and scope updated.');
     });
+  }
+
+  async function readRoomsFromPlan() {
+    const fp = store().state.floorplan;
+    if (!fp) { window.PlanexUI.toast('Upload a floor plan first.'); return; }
+    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) {
+      window.PlanexUI.toast('Reading a plan needs the hosted assistant (set workerUrl in config).');
+      return;
+    }
+    if (store().state.rooms.length && !confirm('Replace the current area schedule with rooms read from the plan?')) return;
+
+    const btn = document.querySelector('#fp-read');
+    const prev = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Reading plan…'; }
+
+    try {
+      const res = await window.PlanexAIClient.readPlan({ kind: 'plan', name: fp.name, dataUrl: fp.dataUrl });
+      const rooms = (res.rooms || []).map(function (r) {
+        return {
+          id: r.id || ('room-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4)),
+          name: r.name,
+          length: r.lengthM,
+          width: r.widthM,
+          area: (Number(r.lengthM) * Number(r.widthM)).toFixed(1) + ' m²',
+          color: '#9db8c9',
+          type: 'private',
+          source: r.source || 'ai-plan',
+          confidence: r.confidence || 'low'
+        };
+      });
+      if (!rooms.length) {
+        window.PlanexUI.toast('Could not read rooms from that plan.');
+        if (btn) { btn.disabled = false; btn.textContent = prev; }
+        return;
+      }
+      store().state.rooms = rooms;
+      store().commit();
+      store().regenerateScope();
+      window.PlanexUI.toast('Read ' + rooms.length + ' rooms from the plan.');
+      window.PlanexApp.renderView();
+    } catch (e) {
+      window.PlanexUI.toast('Plan reading failed (' + (e && e.status ? e.status : 'network') + ').');
+      if (btn) { btn.disabled = false; btn.textContent = prev; }
+    }
   }
 
   return { render: render };

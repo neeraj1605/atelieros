@@ -654,6 +654,14 @@
 .scope-summary .muted { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
 .split-bar { display: flex; height: 16px; border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
 .split-seg { height: 100%; }
+.plan-preview {
+  margin-top: 4px; border: 1px solid var(--border); border-radius: var(--r-md);
+  overflow: hidden; background: var(--bg-inset);
+}
+.plan-preview img {
+  display: block; width: 100%; max-height: 520px; object-fit: contain;
+  cursor: zoom-in; background: #fff;
+}
 @media (max-width: 640px) { .scope-summary { grid-template-columns: repeat(2, 1fr); } }
 
 .renders-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.render-thumb {

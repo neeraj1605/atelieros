@@ -12,6 +12,7 @@ import { toGeminiContents, streamReply, extractStructured, streamCritique } from
 import { generateImage } from './image.js';
 import { hasVisualIntent, synthesizeImageSpec, contextIsSufficient } from './intent.js';
 import { buildScopePrompt, normalizeScope } from './scope.js';
+import { buildRoomsPrompt, normalizeRooms } from './plan.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -135,6 +136,10 @@ export default {
 
       if (url.pathname === '/scope' && request.method === 'POST') {
         return await handleScope(request, env, origin);
+      }
+
+      if (url.pathname === '/plan/rooms' && request.method === 'POST') {
+        return await handlePlanRooms(request, env, origin);
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -409,5 +414,44 @@ async function handleScope(request, env, origin) {
     const message = String(err && err.message ? err.message : err);
     console.error('scope_failed', message);
     return json({ error: 'scope_failed', detail: message.slice(0, 160) }, 502, env, origin);
+  }
+}
+
+async function handlePlanRooms(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  const att = normalizeAttachments(body.attachments, env);
+  if (!att.ok) return json({ error: att.reason }, 413, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const plan = (att.attachments || []).find((a) => a.kind === 'plan') || (att.attachments || [])[0];
+  if (!plan) return json({ error: 'no_plan' }, 422, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const latest = await db.latestContext(env, auth.projectId);
+  const context = latest.context || emptyContext();
+
+  try {
+    const result = await extractStructured(
+      env, buildRoomsPrompt(context, true), { mime: plan.mime, data: plan.data }, env.GEMINI_SCOPE_MODEL
+    );
+    const parsedRooms = normalizeRooms(result.parsed);
+    if (!parsedRooms) {
+      console.error('plan_rooms_empty', String(result.raw || '').slice(0, 500));
+      return json({ error: 'rooms_empty' }, 422, env, origin);
+    }
+    await db.addAudit(env, auth.projectId, 'plan.read_rooms', { rooms: parsedRooms.rooms.length });
+    await addTokens(env, result.tokens || 0);
+    return json({ rooms: parsedRooms.rooms }, 200, env, origin);
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    console.error('plan_rooms_failed', message);
+    return json({ error: 'plan_rooms_failed', detail: message.slice(0, 160) }, 502, env, origin);
   }
 }

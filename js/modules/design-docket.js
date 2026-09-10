@@ -198,6 +198,22 @@ window.PlanexModules.DesignDocket = (function () {
           </div>
         </div>` : '';
 
+    const fp = S.floorplan;
+    const floorplanSection = `
+        <div class="section-label anim anim-1">Floor Plan</div>
+        <div class="card anim anim-1">
+          <div class="card-head">
+            <div>
+              <div class="card-title">${fp ? esc(fp.name) : 'No floor plan yet'}</div>
+              <div class="card-sub">${fp ? 'Shared with the Scope tab' : 'Upload it in the Scope tab'}</div>
+            </div>
+            <div class="badge badge-neutral">shared plan</div>
+          </div>
+          ${fp
+            ? `<div class="plan-preview"><img src="${fp.dataUrl}" alt="Floor plan" data-lightbox="${fp.dataUrl}"></div>`
+            : `<p class="muted text-sm">The floor plan you upload in the <strong>Scope</strong> tab appears here too.</p>`}
+        </div>`;
+
     container.innerHTML = `
       <div class="view-inner">
         <div class="module-header anim">
@@ -210,6 +226,8 @@ window.PlanexModules.DesignDocket = (function () {
             <button class="btn btn-secondary btn-sm" id="docket-add">${ic('plus')} Add Item</button>
           </div>
         </div>
+
+        ${floorplanSection}
 
         <div class="docket-layout">
           <div class="card anim anim-1">
