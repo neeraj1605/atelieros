@@ -1,16 +1,15 @@
 /* ============================================================
    Planex AI — Client configuration
+   Set `workerUrl` to your deployed Cloudflare Worker to enable
+   the hosted Gemini assistant. Leave it empty to use the built-in
+   offline assistant.
    ============================================================ */
-
 window.PLANEX_CONFIG = {
-  // Live Cloudflare quick tunnel to the local Worker running REAL Gemini.
-  // NOTE: this is a temporary tunnel — it stays up only while the Worker and
-  // tunnel processes run on the host machine. For a permanent endpoint, deploy
-  // the Worker (see worker/README.md) and replace this URL.
-  workerUrl: 'https://sonic-totally-necklace-running.trycloudflare.com',
+  // e.g. "https://planex-ai.<your-subdomain>.workers.dev"
+  workerUrl: '',
 
-  // Cloudflare Turnstile site key. Test key (always passes); replace for production.
-  turnstileSiteKey: '1x00000000000000000000AA',
+  // Cloudflare Turnstile site key (public). Required when workerUrl is set.
+  turnstileSiteKey: '',
 
   // How many prior turns to include when sending grounding state.
   maxHistoryTurns: 20
