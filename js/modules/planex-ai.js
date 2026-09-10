@@ -133,6 +133,16 @@ window.PlanexModules.PlanexAI = (function () {
       if (apply) { applyProposal(apply.getAttribute('data-apply')); return; }
       const dismiss = e.target.closest('[data-dismiss]');
       if (dismiss) { dismissProposal(dismiss.getAttribute('data-dismiss')); return; }
+      const buildScope = e.target.closest('[data-build-scope]');
+      if (buildScope) {
+        window.PlanexApp.navigate('docket');
+        setTimeout(function () {
+          if (window.PlanexModules.DesignDocket && window.PlanexModules.DesignDocket.buildScope) {
+            window.PlanexModules.DesignDocket.buildScope();
+          }
+        }, 250);
+        return;
+      }
     });
   }
 
@@ -231,7 +241,10 @@ window.PlanexModules.PlanexAI = (function () {
       });
       typing = false;
       store().addChatMessage('assistant', reply, []);
-      if (hasPlan) store().updateContext({ notes: 'Site plan received. Rooms detected (AI estimate — verify).' });
+      if (hasPlan) {
+        store().updateContext({ notes: 'Site plan received. Rooms detected (AI estimate — verify).' });
+        store().addChatMessage('assistant', 'I can turn this plan into a full room-wise scope of work — flooring, painting, civil, ceiling, lighting, plumbing, joinery and more.', [], { action: 'build-scope' });
+      }
       renderMessages();
     }, delay);
   }
@@ -331,6 +344,7 @@ window.PlanexModules.PlanexAI = (function () {
     if (patched) store().pushAudit && store().pushAudit('context.ai_update', {});
     if (hasPlan) {
       store().updateContext({ notes: 'Site plan received. Rooms extracted as AI estimates — please verify dimensions.' });
+      store().addChatMessage('assistant', 'I can turn this plan into a full room-wise scope of work — flooring, painting, civil, ceiling, lighting, plumbing, joinery and more.', [], { action: 'build-scope' });
     }
 
     streaming = false;
@@ -389,6 +403,12 @@ window.PlanexModules.PlanexAI = (function () {
       ? `<div class="proposal-stack">${m.proposals.map((p, pi) => proposalCard(p, msgIndex, pi)).join('')}</div>`
       : '';
 
+    const action = (!isUser && m.action === 'build-scope')
+      ? `<div class="proposal-stack"><div class="proposal-card"><div class="pc-head"><span class="badge badge-info">Next</span><span class="pc-title">Build your scope of work</span></div>
+         <div class="pc-rationale">Room-by-room, work-package-wise: flooring, painting, civil, ceiling, lighting, plumbing, joinery and more.</div>
+         <div class="pc-actions"><button class="btn btn-primary btn-sm" data-build-scope="1">${ic('plan')} Build my scope</button></div></div></div>`
+      : '';
+
     return `
       <div class="msg ${isUser ? 'user' : 'ai'}">
         <div class="msg-avatar">${isUser ? ic('user') : ic('sparkles')}</div>
@@ -396,6 +416,7 @@ window.PlanexModules.PlanexAI = (function () {
           <div class="bubble">${esc(m.text)}</div>
           ${atts ? `<div class="msg-attachments">${atts}</div>` : ''}
           ${proposals}
+          ${action}
           <span class="msg-time">${esc(m.time || '')}</span>
         </div>
       </div>`;

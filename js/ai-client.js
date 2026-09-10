@@ -222,6 +222,30 @@ window.PlanexAIClient = (function () {
     });
   }
 
+  async function buildScope(opts) {
+    const session = await ensureSession(false);
+    const res = await fetch(base() + '/scope', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + session.token
+      },
+      body: JSON.stringify({
+        attachments: toApiAttachments(opts && opts.attachments),
+        state: (opts && opts.state) || {}
+      })
+    });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch (e) { /* ignore */ }
+      const err = new Error(detail.error || ('scope_' + res.status));
+      err.status = res.status;
+      err.detail = detail;
+      throw err;
+    }
+    return res.json();
+  }
+
   async function generateImage(prompt, opts) {
     const session = await ensureSession(false);
     const res = await fetch(base() + '/image', {
@@ -250,6 +274,7 @@ window.PlanexAIClient = (function () {
     ensureSession: ensureSession,
     send: send,
     generateImage: generateImage,
+    buildScope: buildScope,
     getContext: getContext,
     audit: audit,
     clearSession: clearSession,

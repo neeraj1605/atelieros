@@ -103,15 +103,19 @@ export async function streamCritique(env, systemInstruction, userPrompt, imageBa
   return streamGenerateContent(env, model, body, onDelta);
 }
 
-export async function extractStructured(env, prompt) {
-  const model = env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
+export async function extractStructured(env, prompt, image, modelName) {
+  const model = modelName || env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
   const url = `${apiBase(env)}/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+  const parts = [{ text: prompt }];
+  if (image && image.mime && image.data) {
+    parts.push({ inlineData: { mimeType: image.mime, data: image.data } });
+  }
   const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    contents: [{ role: 'user', parts }],
     generationConfig: {
       temperature: 0.2,
       responseMimeType: 'application/json',
-      maxOutputTokens: 2048
+      maxOutputTokens: 8192
     }
   };
   const res = await fetch(url, {
@@ -128,5 +132,5 @@ export async function extractStructured(env, prompt) {
   const tokens = data?.usageMetadata?.totalTokenCount || 0;
   let parsed = {};
   try { parsed = JSON.parse(text); } catch { parsed = {}; }
-  return { parsed, tokens };
+  return { parsed, tokens, raw: text };
 }

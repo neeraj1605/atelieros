@@ -18,6 +18,8 @@ GEMINI_FLASH_MODEL = "gemini-3.6-flash"
 GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
 # Multimodal model used to critique generated renders (separate quota bucket).
 GEMINI_VISION_MODEL = "gemini-3.5-flash-lite"
+# Model used to build the room-wise scope (vision-capable).
+GEMINI_SCOPE_MODEL = "gemini-3.5-flash-lite"
 # Image generation provider: "pollinations" (free, no key). Swappable later.
 IMAGE_PROVIDER = "pollinations"
 IMAGE_MODEL = "flux"

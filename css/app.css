@@ -593,8 +593,37 @@
 }
 .msg-body .bubble .typing { padding: 0; background: transparent; }
 
-.renders-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.render-thumb {
+/* ---------- Scope of work ---------- */
+.scope-rooms { display: flex; flex-direction: column; gap: 10px; }
+.scope-room {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 10px 12px; background: var(--surface-2);
+}
+.scope-room > summary {
+  cursor: pointer; display: flex; justify-content: space-between; gap: 10px;
+  font-weight: 650; font-size: 14px; list-style: none;
+}
+.scope-room > summary::-webkit-details-marker { display: none; }
+.scope-cat { margin-top: 10px; }
+.scope-cat-name {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); margin: 8px 0 4px;
+}
+.scope-item {
+  display: grid; grid-template-columns: auto 1fr 72px auto; gap: 8px; align-items: center;
+  padding: 5px 4px; border-radius: var(--r-sm);
+}
+.scope-item:hover { background: var(--bg-inset); }
+.scope-item-name { font-size: 13px; }
+.scope-qty {
+  width: 72px; padding: 4px 6px; text-align: right;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: inherit;
+}
+.scope-unit { font-size: 11.5px; color: var(--text-muted); min-width: 34px; }
+.scope-note { grid-column: 2 / -1; font-size: 11px; color: var(--text-muted); }
+.scope-room-actions { margin-top: 10px; }
+
+.renders-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.render-thumb {
   width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
   border-radius: var(--r-md); border: 1px solid var(--border);
   cursor: pointer; transition: transform .16s ease;

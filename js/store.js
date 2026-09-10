@@ -52,7 +52,8 @@ window.PlanexStore = (function () {
       },
       contextVersions: [],
       audit: [],
-      renders: []
+      renders: [],
+      scope: null
     };
     initial.contextVersions.push({
       version: 1,
@@ -73,6 +74,7 @@ window.PlanexStore = (function () {
           if (!Array.isArray(state.contextVersions)) state.contextVersions = [];
           if (!Array.isArray(state.audit)) state.audit = [];
           if (!Array.isArray(state.renders)) state.renders = [];
+          if (state.scope === undefined) state.scope = null;
           if (!state.context || !state.context.project) state.context = buildInitial().context;
           if (!state.contextVersion) state.contextVersion = 1;
           return;
@@ -295,6 +297,58 @@ window.PlanexStore = (function () {
     return entry;
   }
 
+  /* ---------- Scope ---------- */
+  function setScope(scope) {
+    state.scope = scope || null;
+    commit();
+  }
+
+  function ensureRoomForScope(room) {
+    const existing = state.rooms.find(function (r) {
+      return r.name.toLowerCase() === String(room.name || '').toLowerCase();
+    });
+    if (existing) return existing.id;
+    const id = room.id || ('room-' + Date.now());
+    state.rooms.push({
+      id: id,
+      name: room.name,
+      length: 0,
+      width: 0,
+      area: '—',
+      color: '#9db8c9',
+      type: room.type || 'private'
+    });
+    return id;
+  }
+
+  // Push selected scope items into the BOQ. Rates are left at 0 for the user to fill.
+  function addScopeToBOQ(roomId) {
+    const scope = state.scope;
+    if (!scope || !Array.isArray(scope.rooms)) return 0;
+    let added = 0;
+    scope.rooms.forEach(function (room) {
+      if (roomId && room.id !== roomId) return;
+      const targetRoomId = ensureRoomForScope(room);
+      room.categories.forEach(function (cat) {
+        cat.items.forEach(function (item) {
+          if (item.included === false) return;
+          state.boq.push({
+            id: 'b-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+            room: targetRoomId,
+            category: cat.name,
+            item: item.name,
+            qty: Number(item.qty) || 1,
+            unit: item.unit || 'nos',
+            rate: 0
+          });
+          added++;
+        });
+      });
+    });
+    commit();
+    return added;
+  }
+
   /* Apply a proposal the user explicitly confirmed. */
   function applyProposal(proposal) {
     if (!proposal || !proposal.type) return false;
@@ -382,6 +436,7 @@ window.PlanexStore = (function () {
     setView, setTheme, setActiveRoom, updateBOQItem, selectVendor,
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
+    setScope, addScopeToBOQ,
     reset
   };
 })();

@@ -11,6 +11,7 @@ import { buildSystemInstruction, buildExtractionPrompt, CRITIQUE_INSTRUCTION, bu
 import { toGeminiContents, streamReply, extractStructured, streamCritique } from './gemini.js';
 import { generateImage } from './image.js';
 import { hasVisualIntent, synthesizeImageSpec, contextIsSufficient } from './intent.js';
+import { buildScopePrompt, normalizeScope } from './scope.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -130,6 +131,10 @@ export default {
 
       if (url.pathname === '/image' && request.method === 'POST') {
         return await handleImage(request, env, origin);
+      }
+
+      if (url.pathname === '/scope' && request.method === 'POST') {
+        return await handleScope(request, env, origin);
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -361,5 +366,48 @@ async function handleImage(request, env, origin) {
   } catch (err) {
     const message = String(err && err.message ? err.message : err);
     return json({ error: 'image_failed', detail: message.slice(0, 160) }, 502, env, origin);
+  }
+}
+
+async function handleScope(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  const att = normalizeAttachments(body.attachments, env);
+  if (!att.ok) return json({ error: att.reason }, 413, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const latest = await db.latestContext(env, auth.projectId);
+  const context = latest.context || emptyContext();
+  const grounding = body.state && typeof body.state === 'object' ? body.state : {};
+
+  const attachments = att.attachments || [];
+  const plan = attachments.find((a) => a.kind === 'plan') || attachments[0] || null;
+  const prompt = buildScopePrompt(context, grounding, !!plan);
+
+  try {
+    const result = await extractStructured(
+      env, prompt, plan ? { mime: plan.mime, data: plan.data } : null, env.GEMINI_SCOPE_MODEL
+    );
+    const scope = normalizeScope(result.parsed);
+    if (!scope) {
+      console.error('scope_empty', String(result.raw || '').slice(0, 600));
+      return json({ error: 'scope_empty' }, 422, env, origin);
+    }
+    await db.addAudit(env, auth.projectId, 'scope.generate', {
+      rooms: scope.rooms.length, source: plan ? 'plan' : 'brief'
+    });
+    await addTokens(env, result.tokens || 0);
+    return json({ scope }, 200, env, origin);
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    console.error('scope_failed', message);
+    return json({ error: 'scope_failed', detail: message.slice(0, 160) }, 502, env, origin);
   }
 }
