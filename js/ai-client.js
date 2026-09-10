@@ -267,6 +267,27 @@ window.PlanexAIClient = (function () {
     return res.json();
   }
 
+  async function enrichDocket(docket, grounding) {
+    const session = await ensureSession(false);
+    const res = await fetch(base() + '/docket/enrich', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + session.token
+      },
+      body: JSON.stringify({ docket: docket, grounding: grounding || {} })
+    });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch (e) { /* ignore */ }
+      const err = new Error(detail.error || ('enrich_' + res.status));
+      err.status = res.status;
+      err.detail = detail;
+      throw err;
+    }
+    return res.json();
+  }
+
   async function generateImage(prompt, opts) {
     const session = await ensureSession(false);
     const res = await fetch(base() + '/image', {
@@ -297,6 +318,7 @@ window.PlanexAIClient = (function () {
     generateImage: generateImage,
     buildScope: buildScope,
     readPlan: readPlan,
+    enrichDocket: enrichDocket,
     getContext: getContext,
     audit: audit,
     clearSession: clearSession,

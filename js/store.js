@@ -56,7 +56,8 @@ window.PlanexStore = (function () {
       scopeDoc: null,
       scopeQuality: 'standard',
       floorplan: null,
-      roomImages: {}
+      roomImages: {},
+      docketSet: null
     };
     initial.project.projectType = 'ready';
     initial.contextVersions.push({
@@ -81,6 +82,7 @@ window.PlanexStore = (function () {
           if (state.scopeDoc === undefined) state.scopeDoc = null;
           if (state.floorplan === undefined) state.floorplan = null;
           if (!state.roomImages || typeof state.roomImages !== 'object') state.roomImages = {};
+          if (state.docketSet === undefined) state.docketSet = null;
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (!state.context || !state.context.project) state.context = buildInitial().context;
@@ -475,6 +477,54 @@ window.PlanexStore = (function () {
     return added;
   }
 
+  /* ---------- Design dockets ---------- */
+  function setDocketSet(set) { state.docketSet = set || null; commit(); }
+
+  function updateDocketCell(docketId, sectionKey, rowIndex, colIndex, value) {
+    const set = state.docketSet;
+    if (!set) return;
+    const d = set.dockets.filter(function (x) { return x.id === docketId; })[0];
+    if (!d) return;
+    const s = d.sections.filter(function (x) { return x.key === sectionKey; })[0];
+    if (!s || !s.rows[rowIndex]) return;
+    s.rows[rowIndex][colIndex] = value;
+    s.rows[rowIndex].edited = true;
+    commit();
+  }
+
+  // Apply AI enrichment: { model, notes, sections: { [sectionKey]: { [columnTitle]: value | [values] } } }
+  function mergeDocketEnrichment(docketId, enrichment) {
+    const set = state.docketSet;
+    if (!set || !enrichment) return false;
+    const d = set.dockets.filter(function (x) { return x.id === docketId; })[0];
+    if (!d) return false;
+
+    if (enrichment.sections) {
+      d.sections.forEach(function (s) {
+        const up = enrichment.sections[s.key];
+        if (!up) return;
+        Object.keys(up).forEach(function (colTitle) {
+          const idx = s.columns.indexOf(colTitle);
+          if (idx < 0) return;
+          const val = up[colTitle];
+          if (Array.isArray(val)) {
+            val.forEach(function (v, i) {
+              if (s.rows[i] && !s.rows[i].edited) s.rows[i][idx] = v;
+            });
+          } else if (typeof val === 'string') {
+            s.rows.forEach(function (r) {
+              if (!r.colEdited || !r.colEdited[idx]) r[idx] = val;
+            });
+          }
+        });
+      });
+    }
+    d.ai = { enrichedAt: new Date().toISOString(), model: enrichment.model || 'gemini', notes: enrichment.notes || '' };
+    pushAudit('docket.enrich', { docket: docketId });
+    commit();
+    return true;
+  }
+
   /* Apply a proposal the user explicitly confirmed. */
   function applyProposal(proposal) {
     if (!proposal || !proposal.type) return false;
@@ -592,6 +642,7 @@ window.PlanexStore = (function () {
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
+    setDocketSet, updateDocketCell, mergeDocketEnrichment,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,
     reset

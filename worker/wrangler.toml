@@ -20,6 +20,8 @@ GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
 GEMINI_VISION_MODEL = "gemini-3.5-flash-lite"
 # Model used to build the room-wise scope (vision-capable).
 GEMINI_SCOPE_MODEL = "gemini-3.5-flash-lite"
+# Model used to enrich design dockets (falls back to flash/lite on 429).
+GEMINI_DOCKET_MODEL = "gemini-3.6-flash"
 # Image generation provider: "pollinations" (free, no key). Swappable later.
 IMAGE_PROVIDER = "pollinations"
 IMAGE_MODEL = "flux"

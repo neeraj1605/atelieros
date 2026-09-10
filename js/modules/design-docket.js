@@ -1,375 +1,267 @@
 /* ============================================================
-   Planex AI — Design Docket Module
-   Floorplan canvas + furniture footprints + editable BOQ
+   Planex — Design Docket Tab
+   The execution-grade docket SET: furniture, kitchen, wardrobe,
+   lighting, ceiling, paint, flooring, electrical, plumbing,
+   doors, wall finishes, HVAC and site/handover.
    ============================================================ */
 window.PlanexModules = window.PlanexModules || {};
 
 window.PlanexModules.DesignDocket = (function () {
-  let showGrid = true;
-  let showFurniture = true;
+  let selectedId = 'furniture';
 
   function store() { return window.PlanexStore; }
   function ic(n) { return window.PlanexIcons.get(n); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function money(n) { return store().formatMoney(n || 0); }
 
-  function furnitureFor(room) {
-    // returns items in metres relative to room L (x) × W (y)
-    const L = room.length, W = room.width;
-    const n = room.name.toLowerCase();
-    const F = [];
-    const add = (x, y, w, h, label, color) => F.push({ x, y, w, h, label, color });
-
-    if (n.includes('living')) {
-      add(0.25, 0.3, 2.2, 0.9, 'Sofa', '#8a6f52');
-      add(2.7, 0.3, 0.9, 0.9, 'Chair', '#a98a68');
-      add(3.75, 0.3, 0.9, 0.9, 'Chair', '#a98a68');
-      add(2.0, 1.9, 1.1, 0.6, 'Coffee Table', '#9c8a68');
-      add(0.25, W - 1.2, 2.4, 0.45, 'TV Unit', '#6f6f76');
-    } else if (n.includes('kitchen')) {
-      add(0.2, 0.2, L - 0.4, 0.6, 'Counter', '#7f8c8d');
-      add(0.2, 0.8, 0.6, W - 1.0, 'Counter', '#7f8c8d');
-      add(1.6, 1.2, 1.2, 0.8, 'Island', '#95a5a6');
-    } else if (n.includes('master')) {
-      add((L - 1.9) / 2, 0.3, 1.9, 2.1, 'King Bed', '#7d6b8a');
-      add((L - 1.9) / 2 - 0.55, 0.35, 0.45, 0.45, 'Side', '#9b8aa8');
-      add((L + 1.9) / 2 + 0.1, 0.35, 0.45, 0.45, 'Side', '#9b8aa8');
-      add(0.2, W - 0.8, 2.4, 0.6, 'Wardrobe', '#6b5f78');
-    } else if (n.includes('kids')) {
-      add(0.3, 0.3, 1.0, 2.0, 'Bunk Bed', '#c98f4a');
-      add(L - 1.5, 0.3, 1.2, 0.6, 'Study', '#b07c3f');
-      add(0.3, W - 0.8, 1.6, 0.5, 'Storage', '#d0a468');
-    } else if (n.includes('study')) {
-      add(0.2, 0.2, 1.6, 0.6, 'Desk', '#6f8a6a');
-      add(0.2, W - 0.7, 1.8, 0.5, 'Shelving', '#5f7a5a');
-    } else if (n.includes('bath')) {
-      add(0.2, 0.2, 0.6, 0.7, 'WC', '#6f9bb0');
-      add(L - 1.1, 0.2, 0.9, 0.5, 'Vanity', '#6f9bb0');
-      add(0.2, W - 1.0, 0.9, 0.8, 'Shower', '#7fb0c9');
-    }
-    return F;
+  function current() {
+    const set = store().state.docketSet;
+    if (!set) return null;
+    return set.dockets.filter(function (d) { return d.id === selectedId; })[0] || set.dockets[0];
   }
 
-  function drawPlan(canvas, room) {
-    const dpr = window.devicePixelRatio || 1;
-    const cssW = canvas.parentElement.clientWidth || 560;
-    const maxH = 380;
-    const ratio = room.width / room.length;
-    let cssH = cssW * ratio;
-    if (cssH > maxH) { cssH = maxH; }
-    const drawW = cssH / ratio > cssW ? cssW : cssH / ratio;
-    const drawH = drawW * ratio;
-
-    canvas.width = Math.round(drawW * dpr);
-    canvas.height = Math.round(drawH * dpr);
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const W = drawW, H = drawH;
-
-    const styles = getComputedStyle(document.documentElement);
-    const cBg = styles.getPropertyValue('--bg-inset').trim() || '#f4f4f5';
-    const cBorder = styles.getPropertyValue('--border-strong').trim() || '#d4d4d8';
-    const cText = styles.getPropertyValue('--text-secondary').trim() || '#52525b';
-    const cAccent = styles.getPropertyValue('--text-muted').trim() || '#a1a1aa';
-
-    ctx.clearRect(0, 0, W, H);
-
-    // Grid
-    if (showGrid) {
-      ctx.strokeStyle = cBorder;
-      ctx.globalAlpha = 0.45;
-      ctx.lineWidth = 1;
-      const step = W / (room.length * 2); // every 0.5 m
-      for (let x = 0; x <= W; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-      const stepY = H / (room.width * 2);
-      for (let y = 0; y <= H; y += stepY) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-      ctx.globalAlpha = 1;
-    }
-
-    // Room fill
-    ctx.fillStyle = hexA(room.color, 0.14);
-    ctx.fillRect(0, 0, W, H);
-
-    // Furniture
-    if (showFurniture) {
-      const items = furnitureFor(room);
-      const sx = W / room.length;
-      const sy = H / room.width;
-      items.forEach(it => {
-        const x = it.x * sx, y = it.y * sy, w = it.w * sx, h = it.h * sy;
-        ctx.fillStyle = hexA(it.color, 0.85);
-        roundRect(ctx, x, y, w, h, 6);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,.75)';
-        ctx.lineWidth = 1;
-        roundRect(ctx, x, y, w, h, 6);
-        ctx.stroke();
-        // label
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '600 9px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        if (w > 42 && h > 16) {
-          ctx.fillText(it.label, x + w / 2, y + h / 2);
-        }
-      });
-    }
-
-    // Room border
-    ctx.strokeStyle = cAccent;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(1, 1, W - 2, H - 2);
-
-    // Dimensions
-    ctx.fillStyle = cText;
-    ctx.font = '600 11px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`${room.length.toFixed(1)} m`, W / 2, H - 8 > 0 ? H - 8 : 12);
-    ctx.save();
-    ctx.translate(12, H / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${room.width.toFixed(1)} m`, 0, 0);
-    ctx.restore();
-
-    // Scale note
-    ctx.fillStyle = cAccent;
-    ctx.font = '500 10px Inter, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText('Scale ≈ 1:50', W - 8, 16);
+  function sectionTable(d, s) {
+    const head = s.columns.map(function (c) { return `<th>${esc(c)}</th>`; }).join('');
+    const body = s.rows.length
+      ? s.rows.map(function (row, ri) {
+          const cells = s.columns.map(function (col, ci) {
+            const val = row[ci] == null ? '' : row[ci];
+            return `<td><input class="dcell" value="${esc(val)}" data-dcell="${d.id}:${s.key}:${ri}:${ci}" title="${esc(col)}"></td>`;
+          }).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('')
+      : `<tr><td colspan="${s.columns.length}" class="muted">No rows — generate the scope first.</td></tr>`;
+    return `
+      <div class="docket-section">
+        <div class="docket-section-title">${esc(s.title)}</div>
+        <div style="overflow-x:auto;"><table class="docket-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+      </div>`;
   }
 
-  function roundRect(ctx, x, y, w, h, r) {
-    r = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function hexA(hex, a) {
-    if (!hex) return 'rgba(0,0,0,' + a + ')';
-    hex = hex.replace('#', '');
-    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-    const n = parseInt(hex, 16);
-    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    return `rgba(${r},${g},${b},${a})`;
+  function documentView(d) {
+    if (!d) return '<p class="muted">No docket selected.</p>';
+    const refs = d.refs || {};
+    return `
+      <div class="docket-doc">
+        <div class="docket-doc-head">
+          <div>
+            <h2 class="serif" style="font-size:22px;">${esc(d.name)}</h2>
+            <p class="muted text-sm">${esc(d.purpose)}</p>
+            <div class="docket-meta">
+              <span class="badge badge-neutral">Trade: ${esc(d.trade)}</span>
+              ${d.provisional ? '<span class="badge badge-warning">Provisional — plan not validated</span>' : '<span class="badge badge-success">Plan validated</span>'}
+              ${d.ai ? '<span class="badge badge-info">AI enriched</span>' : ''}
+              <span class="badge badge-neutral">Scope: ${(refs.scopePackages || []).join(', ')}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" id="dk-print">${ic('print')} Print / PDF</button>
+            <button class="btn btn-primary btn-sm" id="dk-enrich">${ic('sparkles')} ${d.ai ? 'Re-enrich' : 'Enrich with AI'}</button>
+          </div>
+        </div>
+        ${d.sections.map(function (s) { return sectionTable(d, s); }).join('')}
+        ${d.notes && d.notes.length ? `
+          <div class="docket-section">
+            <div class="docket-section-title">Expert Notes</div>
+            <ul class="docket-notes">${d.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('')}</ul>
+          </div>` : ''}
+        ${d.ai && d.ai.notes ? `
+          <div class="docket-section">
+            <div class="docket-section-title">AI Enrichment Notes</div>
+            <p class="text-sm">${esc(d.ai.notes)}</p>
+          </div>` : ''}
+        <div class="docket-foot">Prepared by Planex AI · ${esc(new Date().toLocaleString())} · Plan revision ${esc(d.refs && d.refs.planRevision || '—')} · Quantities per the Scope of Work</div>
+      </div>`;
   }
 
   function render(container) {
     const S = store().state;
-    const active = S.rooms.find(r => r.id === S.activeRoomId) || S.rooms[0];
-    const fin = store().getFinancials();
-    const money = (n) => store().formatMoney(n);
-
-    const roomRows = S.rooms.map(r => `
-      <div class="room-row ${r.id === active.id ? 'active' : ''}" data-room="${r.id}">
-        <div class="room-swatch" style="background:${r.color}"></div>
-        <div class="room-info">
-          <div class="rn">${esc(r.name)}</div>
-          <div class="rd">${r.length.toFixed(1)} × ${r.width.toFixed(1)} m</div>
-        </div>
-        <div class="room-area">${r.area}</div>
-      </div>`).join('');
-
-    const rows = S.boq.map(b => `
-      <tr>
-        <td><div class="boq-cat">${esc(b.category)}</div><div style="font-weight:600;">${esc(b.item)}</div></td>
-        <td class="num"><input class="input" style="width:74px;padding:6px 8px;text-align:right;" type="number" min="0" value="${b.qty}" data-qty="${b.id}"></td>
-        <td class="num muted">${esc(b.unit)}</td>
-        <td class="num"><input class="input" style="width:104px;padding:6px 8px;text-align:right;" type="number" min="0" value="${b.rate}" data-rate="${b.id}"></td>
-        <td class="num bold">${money(b.qty * b.rate)}</td>
-      </tr>`).join('');
-
-    const rendersSection = (S.renders && S.renders.length) ? `
-        <div class="section-label anim anim-3">Concept Renders</div>
-        <div class="card anim anim-3">
-          <div class="card-head">
-            <div><div class="card-title">Generated Concepts</div><div class="card-sub">AI renders from your Planex AI conversations</div></div>
-            <div class="badge badge-neutral">${S.renders.length}</div>
-          </div>
-          <div class="renders-grid">
-            ${S.renders.map(r => `<img class="render-thumb" src="${r.dataUrl}" alt="Concept render" data-lightbox="${r.dataUrl}" title="${esc(r.prompt || '')}">`).join('')}
-          </div>
-        </div>` : '';
-
-    const fp = S.floorplan;
-    const floorplanSection = `
-        <div class="section-label anim anim-1">Floor Plan</div>
-        <div class="card anim anim-1">
-          <div class="card-head">
-            <div>
-              <div class="card-title">${fp ? esc(fp.name) : 'No floor plan yet'}</div>
-              <div class="card-sub">${fp ? 'Shared with the Scope tab' : 'Upload it in the Scope tab'}</div>
-            </div>
-            <div class="badge badge-neutral">shared plan</div>
-          </div>
-          ${fp
-            ? `<div class="plan-preview"><img src="${fp.dataUrl}" alt="Floor plan" data-lightbox="${fp.dataUrl}"></div>`
-            : `<p class="muted text-sm">The floor plan you upload in the <strong>Scope</strong> tab appears here too.</p>`}
-        </div>`;
+    const set = S.docketSet;
+    const d = set ? current() : null;
 
     container.innerHTML = `
       <div class="view-inner">
         <div class="module-header anim">
           <div>
             <h1 class="serif">Design Docket</h1>
-            <p>Your scaled floorplan, furniture layout, and detailed bill of quantities — the blueprint for execution.</p>
+            <p>Execution dockets for the site agency and suppliers — furniture, lighting, ceiling, paint and every trade.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-sm" id="docket-print">${ic('print')} Print / PDF</button>
-            <button class="btn btn-secondary btn-sm" id="docket-add">${ic('plus')} Add Item</button>
+            <button class="btn btn-primary btn-sm" id="dk-generate">${ic('docket')} ${set ? 'Regenerate dockets' : 'Generate dockets'}</button>
+            ${set ? `<button class="btn btn-secondary btn-sm" id="dk-print-all">${ic('print')} Print pack</button>` : ''}
           </div>
         </div>
 
-        ${floorplanSection}
-
-        <div class="docket-layout">
+        ${!set ? `
+          <div class="empty anim anim-1">
+            <div class="empty-icon">${ic('docket')}</div>
+            <p>Generate the dockets from your <strong>Scope of Work</strong>. Each trade gets its own schedule — quantities come straight from the scope.</p>
+          </div>` : `
           <div class="card anim anim-1">
             <div class="card-head">
               <div>
-                <div class="card-title">${esc(active.name)} <span class="faint" style="font-weight:400;">• ${active.area}</span></div>
-                <div class="card-sub">Furniture layout with clearances</div>
+                <div class="card-title">Docket set</div>
+                <div class="card-sub">${set.dockets.length} dockets · ${esc(set.projectType)} · ${esc(set.quality)} · generated ${esc(new Date(set.generatedAt).toLocaleDateString())}</div>
               </div>
-              <div class="badge badge-neutral mono">1:50</div>
+              <span class="badge ${set.planValidated ? 'badge-success' : 'badge-warning'}">${set.planValidated ? 'Plan validated' : 'Provisional'}</span>
             </div>
-            <div class="plan-toolbar">
-              <button class="chip-toggle ${showGrid ? 'active' : ''}" id="toggle-grid">Grid</button>
-              <button class="chip-toggle ${showFurniture ? 'active' : ''}" id="toggle-furniture">Furniture</button>
-              <div class="spacer"></div>
-              <span class="faint text-xs">${ic('ruler')} mm precision</span>
-            </div>
-            <div class="plan-canvas-wrap">
-              <canvas id="plan-canvas"></canvas>
+            <div class="docket-rail">
+              ${set.dockets.map(function (x) {
+                const rows = x.sections.reduce(function (n, s) { return n + s.rows.length; }, 0);
+                return `<button class="docket-chip ${x.id === d.id ? 'active' : ''}" data-dk="${x.id}">
+                  <span>${esc(x.name.replace(' Docket', ''))}</span>
+                  <span class="faint text-xs">${rows}</span>${x.ai ? ' <span class="dot" style="background:var(--info)"></span>' : ''}
+                </button>`;
+              }).join('')}
             </div>
           </div>
 
-          <div class="card anim anim-2">
-            <div class="card-head">
-              <div>
-                <div class="card-title">Rooms</div>
-                <div class="card-sub">Tap to view layout &amp; BOQ</div>
-              </div>
-              <div class="badge badge-info">${S.rooms.length}</div>
-            </div>
-            <div class="room-list">${roomRows}</div>
-          </div>
-        </div>
+          ${documentView(d)}
+        `}
 
-        ${rendersSection}
-        <div class="section-label anim anim-3">Bill of Quantities</div>
-        <div class="card anim anim-3" style="padding:0;overflow:hidden;">
-          <div style="overflow-x:auto;">
-            <table class="boq-table">
-              <thead>
-                <tr><th>Item</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Rate</th><th class="num">Amount</th></tr>
-              </thead>
-              <tbody>${rows}</tbody>
-              <tfoot>
-                <tr><td colspan="4" class="num muted">Subtotal</td><td class="num">${money(fin.subtotal)}</td></tr>
-                <tr><td colspan="4" class="num muted">GST (18%)</td><td class="num">${money(fin.gst)}</td></tr>
-                <tr><td colspan="4" class="num">Total Estimate</td><td class="num" style="font-size:17px;">${money(fin.total)}</td></tr>
-                <tr><td colspan="4" class="num muted">Budget</td><td class="num ${fin.withinBudget ? 'compare-best' : ''}" style="color:${fin.withinBudget ? '' : 'var(--danger)'}">${money(fin.budget)}</td></tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
+        ${floorplanSection()}
+        ${rendersSection()}
+        ${boqSection()}
       </div>
     `;
 
-    const canvas = container.querySelector('#plan-canvas');
-    const redraw = () => drawPlan(canvas, store().state.rooms.find(r => r.id === store().state.activeRoomId) || store().state.rooms[0]);
-    requestAnimationFrame(redraw);
-
-    container.querySelectorAll('[data-room]').forEach(el => {
-      el.addEventListener('click', () => {
-        store().setActiveRoom(el.getAttribute('data-room'));
-        window.PlanexApp.renderView();
-      });
-    });
-
-    container.querySelector('#toggle-grid').addEventListener('click', () => { showGrid = !showGrid; window.PlanexApp.renderView(); });
-    container.querySelector('#toggle-furniture').addEventListener('click', () => { showFurniture = !showFurniture; window.PlanexApp.renderView(); });
-
-    container.querySelectorAll('[data-qty]').forEach(inp => {
-      inp.addEventListener('change', () => {
-        store().updateBOQItem(inp.getAttribute('data-qty'), { qty: Math.max(0, Number(inp.value) || 0) });
-        window.PlanexApp.renderView();
-      });
-    });
-    container.querySelectorAll('[data-rate]').forEach(inp => {
-      inp.addEventListener('change', () => {
-        store().updateBOQItem(inp.getAttribute('data-rate'), { rate: Math.max(0, Number(inp.value) || 0) });
-        window.PlanexApp.renderView();
-      });
-    });
-
-    container.querySelector('#docket-print').addEventListener('click', () => window.print());
-    container.querySelector('#docket-add').addEventListener('click', addItemDialog);
-    container.querySelectorAll('[data-lightbox]').forEach(el => {
-      el.addEventListener('click', () => window.PlanexUI.lightbox(el.getAttribute('data-lightbox')));
-    });
-
-    // redraw on resize
-    if (!window.__planexResizeBound) {
-      window.__planexResizeBound = true;
-      let t;
-      window.addEventListener('resize', () => {
-        clearTimeout(t);
-        t = setTimeout(() => {
-          if (window.PlanexStore.state.activeView === 'docket') window.PlanexApp.renderView();
-        }, 180);
-      });
-    }
+    bind(container);
   }
 
-  function addItemDialog() {
+  function floorplanSection() {
     const S = store().state;
-    const roomOpts = S.rooms.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
-    window.PlanexUI.modal('Add BOQ Item', `
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <div class="field-row">
-          <div class="field"><label>Room</label><select class="select" id="ni-room">${roomOpts}</select></div>
-          <div class="field"><label>Category</label>
-            <select class="select" id="ni-cat">
-              <option>Furniture</option><option>Civil</option><option>Flooring</option>
-              <option>Wall</option><option>Millwork</option><option>Lighting</option>
-              <option>Paint</option><option>Sanitary</option><option>Appliance</option>
-            </select>
-          </div>
+    const fp = S.floorplan;
+    return `
+      <div class="section-label anim anim-3">Floor Plan</div>
+      <div class="card anim anim-3">
+        <div class="card-head">
+          <div><div class="card-title">${fp ? esc(fp.name) : 'No floor plan yet'}</div>
+          <div class="card-sub">${fp ? 'Shared with the Project and Scope tabs' : 'Upload it in the Project tab'}</div></div>
+          <div class="badge badge-neutral">shared plan</div>
         </div>
-        <div class="field"><label>Item description</label><input class="input" id="ni-item" placeholder="e.g. Study desk with drawers"></div>
-        <div class="field-row">
-          <div class="field"><label>Quantity</label><input class="input" id="ni-qty" type="number" value="1" min="0"></div>
-          <div class="field"><label>Unit</label><input class="input" id="ni-unit" value="nos"></div>
+        ${fp ? `<div class="plan-preview"><img src="${fp.dataUrl}" alt="Floor plan" data-lightbox="${fp.dataUrl}"></div>`
+             : `<p class="muted text-sm">Upload it in the <strong>Project</strong> tab.</p>`}
+      </div>`;
+  }
+
+  function rendersSection() {
+    const S = store().state;
+    if (!S.renders || !S.renders.length) return '';
+    return `
+      <div class="section-label anim anim-3">Concept Renders</div>
+      <div class="card anim anim-3">
+        <div class="card-head"><div><div class="card-title">Generated Concepts</div><div class="card-sub">AI renders from your Planex AI conversations</div></div><div class="badge badge-neutral">${S.renders.length}</div></div>
+        <div class="renders-grid">
+          ${S.renders.map(function (r) { return `<img class="render-thumb" src="${r.dataUrl}" alt="Concept render" data-lightbox="${r.dataUrl}" title="${esc(r.prompt || '')}">`; }).join('')}
         </div>
-        <div class="field"><label>Rate (₹)</label><input class="input" id="ni-rate" type="number" value="10000" min="0"></div>
-        <button class="btn btn-primary btn-block" id="ni-save">Add to Docket</button>
-      </div>
-    `);
-    document.querySelector('#ni-save').addEventListener('click', () => {
-      const item = (document.querySelector('#ni-item').value || '').trim();
-      if (!item) { window.PlanexUI.toast('Please enter an item description.'); return; }
-      window.PlanexStore.state.boq.push({
-        id: 'b-' + Date.now(),
-        room: document.querySelector('#ni-room').value,
-        category: document.querySelector('#ni-cat').value,
-        item,
-        qty: Math.max(0, Number(document.querySelector('#ni-qty').value) || 0),
-        unit: (document.querySelector('#ni-unit').value || 'nos').trim(),
-        rate: Math.max(0, Number(document.querySelector('#ni-rate').value) || 0)
+      </div>`;
+  }
+
+  function boqSection() {
+    const S = store().state;
+    const fin = store().getFinancials();
+    const rows = S.boq.map(function (b) {
+      return `<tr><td><div class="boq-cat">${esc(b.category)}</div><div style="font-weight:600;">${esc(b.item)}</div></td>
+        <td class="num">${b.qty}</td><td class="num muted">${esc(b.unit)}</td>
+        <td class="num">${money(b.rate)}</td><td class="num bold">${money(b.qty * b.rate)}</td></tr>`;
+    }).join('');
+    return `
+      <div class="section-label anim anim-3">Bill of Quantities</div>
+      <div class="card anim anim-3" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table class="boq-table">
+            <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" class="muted" style="padding:18px;">Add scope items to the BOQ from the Scope tab.</td></tr>'}</tbody>
+            <tfoot>
+              <tr><td colspan="4" class="num muted">Subtotal</td><td class="num">${money(fin.subtotal)}</td></tr>
+              <tr><td colspan="4" class="num muted">GST (18%)</td><td class="num">${money(fin.gst)}</td></tr>
+              <tr><td colspan="4" class="num">Total Estimate</td><td class="num" style="font-size:17px;">${money(fin.total)}</td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function bind(container) {
+    const gen = container.querySelector('#dk-generate');
+    if (gen) gen.addEventListener('click', generateDockets);
+
+    const printAll = container.querySelector('#dk-print-all');
+    if (printAll) printAll.addEventListener('click', function () { window.print(); });
+
+    container.querySelectorAll('[data-dk]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        selectedId = b.getAttribute('data-dk');
+        window.PlanexApp.renderView();
       });
-      window.PlanexStore.commit();
-      window.PlanexUI.closeModal();
-      window.PlanexApp.renderView();
-      window.PlanexUI.toast('Item added to design docket.');
+    });
+
+    const print = container.querySelector('#dk-print');
+    if (print) print.addEventListener('click', function () { window.print(); });
+
+    const enrich = container.querySelector('#dk-enrich');
+    if (enrich) enrich.addEventListener('click', enrichCurrent);
+
+    container.querySelectorAll('[data-dcell]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        const p = inp.getAttribute('data-dcell').split(':');
+        store().updateDocketCell(p[0], p[1], Number(p[2]), Number(p[3]), inp.value);
+      });
+    });
+
+    container.querySelectorAll('[data-lightbox]').forEach(function (el) {
+      el.addEventListener('click', function () { window.PlanexUI.lightbox(el.getAttribute('data-lightbox')); });
     });
   }
 
-  return { render };
+  function generateDockets() {
+    if (!store().state.scopeDoc) {
+      window.PlanexUI.toast('Build the Scope of Work first — dockets derive from it.');
+      window.PlanexApp.navigate('scope');
+      return;
+    }
+    const S = store().state;
+    const set = window.PlanexDocketEngine.buildDocketSet({
+      scopeDoc: S.scopeDoc,
+      rooms: S.rooms,
+      plan: S.floorplan,
+      quality: S.scopeQuality || 'standard',
+      projectType: (S.project && S.project.projectType) || 'ready'
+    });
+    store().setDocketSet(set);
+    window.PlanexUI.toast('Generated ' + set.dockets.length + ' dockets.');
+    window.PlanexApp.renderView();
+  }
+
+  async function enrichCurrent() {
+    const set = store().state.docketSet;
+    const d = current();
+    if (!d) return;
+    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) { window.PlanexUI.toast('AI enrichment needs the hosted assistant.'); return; }
+    if (d.ai && !confirm('Re-enrich this docket? This replaces AI-filled values.')) return;
+
+    const btn = document.querySelector('#dk-enrich');
+    const prev = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Enriching…'; }
+
+    try {
+      const S = store().state;
+      const res = await window.PlanexAIClient.enrichDocket(
+        { id: d.id, name: d.name, sections: d.sections },
+        { projectType: set.projectType, quality: set.quality, brief: S.context }
+      );
+      if (res && res.enrichment) {
+        store().mergeDocketEnrichment(d.id, res.enrichment);
+        window.PlanexUI.toast('Docket enriched with India-market specs.');
+        window.PlanexApp.renderView();
+        return;
+      }
+      window.PlanexUI.toast('No enrichment returned.');
+    } catch (e) {
+      window.PlanexUI.toast('Enrichment failed (' + (e && e.status ? e.status : 'network') + ').');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
+  }
+
+  return { render: render };
 })();
