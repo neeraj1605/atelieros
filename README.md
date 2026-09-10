@@ -4,6 +4,8 @@ An AI-assisted interior design product for **homeowners (B2C)**. Planex AI walks
 
 > **Live, zero-dependency app.** Pure HTML/CSS/JS. No build step, no package manager. Open it or host it anywhere.
 
+**Live:** https://neeraj1605.github.io/atelieros/
+
 ---
 
 ## The B2C Journey
