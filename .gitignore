@@ -1,5 +1,21 @@
+# OS
 .DS_Store
 Thumbs.db
-*.log
+
+# Editors
 .vscode/
 .idea/
+*.swp
+
+# Logs
+*.log
+
+# Local env
+.env
+.env.local
+
+# Node (not used by the static app; reserved for the future backend)
+node_modules/
+
+# Kilo agent local state / plans
+.kilo/

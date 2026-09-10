@@ -2,212 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AtelierFlow | Interior Architecture & Project Lifecycle OS</title>
-  <meta name="description" content="Unified interior architecture platform mapping the complete project journey from product discovery and moodboards to 2D spatial floorplans, commercial BOQ budgeting, and project management.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Planex AI — Plan and Execute</title>
+  <meta name="description" content="AI-assisted interior design for homeowners. Ideate, plan, quote, and execute your dream space.">
+  <meta name="theme-color" content="#0a0a0a">
+  <script>
+    // Apply saved theme before first paint to avoid a light/dark flash.
+    (function () {
+      try {
+        var raw = localStorage.getItem('PLANEX_AI_STATE_V1');
+        var theme = raw ? (JSON.parse(raw).theme || 'light') : 'light';
+        document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/design-system.css">
-  <link rel="stylesheet" href="css/views.css">
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <div class="app-container">
-    <!-- MASTER NAVIGATION & HEADER -->
-    <header class="app-header no-print">
-      <!-- BRAND LOGO & TITLE -->
-      <div class="brand-section">
-        <div class="brand-logo">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-            <polyline points="2 17 12 22 22 17"></polyline>
-            <polyline points="2 12 12 17 22 12"></polyline>
+  <div class="app-shell">
+    <!-- Desktop sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12l2-2 7-7 7 7 2 2"></path>
+            <path d="M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"></path>
+            <path d="M13 21v-5a1 1 0 00-1-1h-2a1 1 0 00-1 1v5"></path>
           </svg>
         </div>
-        <div>
-          <div class="brand-title">AtelierFlow</div>
-          <div class="brand-subtitle">Interior Architecture OS</div>
+        <div class="brand-text">
+          <span class="brand-name">Planex AI</span>
+          <span class="brand-tag">Plan &amp; Execute</span>
         </div>
       </div>
 
-      <!-- ACTIVE PROJECT SELECTOR & BADGE -->
-      <div class="project-meta-badge">
-        <span class="project-name">The Bel-Air Penthouse</span>
-        <span class="project-code">AT-2026-08</span>
-      </div>
-
-      <!-- THE 4-PILLAR LIFECYCLE NAVIGATION -->
-      <nav class="nav-pillars">
-        <button class="nav-pillar-btn active" data-view="overview">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-          Lifecycle Hub
-        </button>
-
-        <button class="nav-pillar-btn" data-view="discovery">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-          1. Product Discovery
-          <span class="nav-pillar-badge" id="badge-count-discovery">20</span>
-        </button>
-
-        <button class="nav-pillar-btn" data-view="design">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon></svg>
-          2. Design & Spatial
-        </button>
-
-        <button class="nav-pillar-btn" data-view="commercial">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-          3. Commercial & BOQ
-        </button>
-
-        <button class="nav-pillar-btn" data-view="project-mgmt">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-          4. Project Management
-          <span class="nav-pillar-badge" id="badge-count-pm">7 tasks</span>
-        </button>
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <!-- injected by app.js -->
       </nav>
 
-      <!-- UTILITY CONTROLS -->
-      <div class="header-actions">
-        <!-- Currency Selector -->
-        <select id="currency-selector" class="currency-select" title="Switch Presentation Currency">
-          <option value="USD">USD ($)</option>
-          <option value="EUR">EUR (€)</option>
-          <option value="GBP">GBP (£)</option>
-          <option value="INR">INR (₹)</option>
-          <option value="AUD">AUD (A$)</option>
-        </select>
-
-        <!-- Client Presentation Mode Toggle -->
-        <button class="client-mode-toggle" id="header-client-mode-toggle" title="Toggle Client Mode (Hides trade costs and profit margins)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-          Client Mode
-        </button>
-
-        <!-- Light / Dark Mode Toggle -->
-        <button class="btn btn-ghost btn-sm" id="theme-toggle-btn" title="Toggle Light/Dark Studio Aesthetic">
-          🌙 Dark Studio
-        </button>
-
-        <!-- Reset Demo -->
-        <button class="btn btn-ghost btn-sm" id="btn-reset-demo" title="Reset sample project data">
-          ↺ Reset
-        </button>
+      <div class="sidebar-footer">
+        <div class="project-status-card">
+          <div class="psc-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            <span>Your Project</span>
+          </div>
+          <div class="psc-name" id="psc-project-name">My Home</div>
+          <div class="psc-stage">
+            <span id="psc-stage-label">Ideate</span>
+            <span id="psc-stage-step">1 / 4</span>
+          </div>
+          <div class="psc-bar"><div class="psc-bar-fill" id="psc-bar-fill" style="width:25%"></div></div>
+        </div>
       </div>
-    </header>
+    </aside>
 
-    <!-- DYNAMIC MAIN VIEW CONTAINER -->
-    <main class="main-content" id="view-container">
-      <!-- Injected by app.js -->
-    </main>
-  </div>
-
-  <!-- MODAL: ARCHITECTURAL SPEC SHEET (CUT SHEET) -->
-  <div class="modal-backdrop" id="modal-spec-sheet">
-    <div class="modal-dialog" style="max-width: 920px;">
-      <div style="display:flex; justify-content:flex-end; padding:12px 18px; background:var(--bg-surface-elevated); border-bottom:1px solid var(--border-subtle); gap:10px;" class="no-print">
-        <button class="btn btn-primary btn-sm" id="btn-print-cutsheet">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-          Print / Save PDF Cut Sheet
+    <!-- Main area -->
+    <div class="main-area">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="menu-toggle" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
-        <button class="btn btn-secondary btn-sm btn-close-modal">✕ Close</button>
-      </div>
-      <div id="spec-sheet-render-area">
-        <!-- Rendered by app.js -->
-      </div>
+        <div class="crumbs">
+          <span class="crumb-root">Planex AI</span>
+          <span class="crumb-sep">/</span>
+          <span class="crumb-current" id="crumb-current">Dashboard</span>
+        </div>
+        <div class="topbar-actions">
+          <select id="currency-select" class="mini-select" title="Currency">
+            <option value="INR">₹ INR</option>
+            <option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option>
+            <option value="AED">د.إ AED</option>
+          </select>
+          <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.35 15.35A9 9 0 018.65 3.65 9 9 0 1012 21a9 9 0 008.35-5.65z"></path></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+          </button>
+          <button class="icon-btn" id="reset-demo" aria-label="Reset" title="Reset demo data">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="view" id="app-view"><!-- injected by app.js --></main>
     </div>
   </div>
 
-  <!-- MODAL: ADD CUSTOM FF&E PRODUCT -->
-  <div class="modal-backdrop" id="modal-add-product">
-    <div class="modal-dialog" style="max-width: 640px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; border-bottom:1px solid var(--border-subtle);">
-        <h3 style="font-family:var(--font-serif); font-size:1.25rem;">Add Custom FF&E Specification</h3>
-        <button class="btn btn-ghost btn-sm btn-close-modal">✕</button>
-      </div>
-      
-      <form id="form-add-product" style="padding:24px; display:flex; flex-direction:column; gap:16px;">
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Item Name *</label>
-            <input type="text" id="input-prod-name" class="search-input" required placeholder="e.g. Sculptural Lounge Chair">
-          </div>
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Category *</label>
-            <select id="input-prod-category" class="filter-select" style="width:100%; padding:9px 12px;">
-              <option value="Seating">Seating</option>
-              <option value="Tables">Tables</option>
-              <option value="Lighting">Lighting</option>
-              <option value="Storage & Millwork">Storage & Millwork</option>
-              <option value="Textiles & Rugs">Textiles & Rugs</option>
-              <option value="Sanitaryware & Fixtures">Sanitaryware & Fixtures</option>
-              <option value="Art & Decor">Art & Decor</option>
-            </select>
-          </div>
-        </div>
+  <!-- Mobile bottom nav -->
+  <nav class="bottom-nav" id="bottom-nav"><!-- injected --></nav>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Assigned Space *</label>
-            <select id="input-prod-room" class="filter-select" style="width:100%; padding:9px 12px;">
-              <option value="room-living">Great Room & Lounge</option>
-              <option value="room-dining">Dining Pavilion</option>
-              <option value="room-master">Master Sanctuary Suite</option>
-              <option value="room-kitchen">Chef's Kitchen & Nook</option>
-              <option value="room-study">Executive Study & Library</option>
-              <option value="room-terrace">Sunset Terrace & Solarium</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Vendor / Manufacturer *</label>
-            <input type="text" id="input-prod-vendor" class="search-input" required placeholder="e.g. Minotti Milan">
-          </div>
-        </div>
+  <!-- Toast stack -->
+  <div class="toast-stack" id="toast-stack"></div>
 
-        <div>
-          <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Finish & Upholstery Details</label>
-          <input type="text" id="input-prod-finish" class="search-input" placeholder="e.g. Sand Cast Bronze / Ivory Mohair Velvet">
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Width (mm)</label>
-            <input type="number" id="input-prod-w" class="search-input" value="1200">
-          </div>
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Depth (mm)</label>
-            <input type="number" id="input-prod-d" class="search-input" value="900">
-          </div>
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Height (mm)</label>
-            <input type="number" id="input-prod-h" class="search-input" value="780">
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Trade Cost ($)</label>
-            <input type="number" id="input-prod-cost" class="search-input" required value="3200">
-          </div>
-          <div>
-            <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Markup %</label>
-            <input type="number" id="input-prod-markup" class="search-input" value="35">
-          </div>
-        </div>
-
-        <div>
-          <label class="text-xs text-secondary font-bold" style="display:block; margin-bottom:4px;">Image URL</label>
-          <input type="url" id="input-prod-image" class="search-input" placeholder="https://images.unsplash.com/...">
-        </div>
-
-        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
-          <button type="button" class="btn btn-secondary btn-close-modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save to FF&E Catalog</button>
-        </div>
-      </form>
-    </div>
+  <!-- Lightbox for image viewing -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" id="lightbox-close">&times;</button>
+    <img id="lightbox-img" src="" alt="Preview">
   </div>
 
-  <!-- TOAST NOTIFICATION STACK -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <!-- APP CONTROLLER BUNDLE (ZERO-CORS & OFFLINE READY) -->
-  <script src="js/bundle.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ai-engine.js"></script>
+  <script src="js/modules/dashboard.js"></script>
+  <script src="js/modules/planex-ai.js"></script>
+  <script src="js/modules/design-docket.js"></script>
+  <script src="js/modules/quotation.js"></script>
+  <script src="js/modules/execution.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

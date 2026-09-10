@@ -1,359 +1,299 @@
-// AtelierFlow - Main Application Controller
-import { stateManager, CURRENCIES } from './modules/state.js';
-import { renderOverview } from './modules/overview.js';
-import { renderDiscovery } from './modules/discovery.js';
-import { renderDesign } from './modules/design.js';
-import { renderCommercial } from './modules/commercial.js';
-import { renderProjectMgmt } from './modules/project-mgmt.js';
+/* ============================================================
+   Planex AI — App Bootstrap
+   Icons, UI helpers, router and chrome.
+   ============================================================ */
+(function () {
+  'use strict';
 
-class AppController {
-  constructor() {
-    this.mainContainer = document.getElementById('view-container');
-    this.initHeader();
-    this.initModals();
-    this.initToasts();
-    this.bindEvents();
+  /* ---------------- Icons ---------------- */
+  const ICONS = {
+    sparkles: '<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/>',
+    chat: '<path d="M21 12c0 4.4-4 8-9 8a9.6 9.6 0 01-4.3-.9L3 20l1.4-4.3A7.6 7.6 0 013 12c0-4.4 4-8 9-8s9 3.6 9 8z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>',
+    docket: '<path d="M14 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V7z"/><path d="M14 2v5h5"/><path d="M9 12h6M9 16h6"/>',
+    rupee: '<path d="M6 3h12M6 8h12M6 13h5a5 5 0 000-10"/><path d="M6 13l7 8"/>',
+    build: '<path d="M3 21h18"/><path d="M5 21V9l7-6 7 6v12"/><path d="M9 21v-6h6v6"/>',
+    home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3"/><path d="M13 21v-5a1 1 0 00-1-1h-2a1 1 0 00-1 1v5"/>',
+    user: '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>',
+    plan: '<path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/><path d="M15 15h3v3"/>',
+    send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+    check: '<path d="M20 6L9 17l-5-5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    print: '<path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>',
+    download: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+    upload: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+    ruler: '<path d="M3 17l14-14 4 4-14 14z"/><path d="M7 11l2 2M10 8l2 2M13 5l2 2"/>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
+    alert: '<path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    collapse: '<path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>'
+  };
 
-    // Subscribe to state changes
-    stateManager.subscribe(() => {
-      this.renderCurrentView();
-      this.updateHeaderBadges();
+  window.PlanexIcons = {
+    get: function (name) {
+      const body = ICONS[name] || ICONS.sparkles;
+      return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + body + '</svg>';
+    }
+  };
+
+  /* ---------------- UI helpers ---------------- */
+  let modalEl = null;
+
+  window.PlanexUI = {
+    toast: function (msg) {
+      const stack = document.getElementById('toast-stack');
+      if (!stack) return;
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.innerHTML = window.PlanexIcons.get('check') + '<span>' + String(msg).replace(/</g, '&lt;') + '</span>';
+      stack.appendChild(el);
+      setTimeout(function () {
+        el.classList.add('out');
+        setTimeout(function () { el.remove(); }, 260);
+      }, 3200);
+    },
+
+    modal: function (title, bodyHtml) {
+      this.closeModal();
+      modalEl = document.createElement('div');
+      modalEl.className = 'modal-backdrop';
+      modalEl.innerHTML =
+        '<div class="modal-dialog" role="dialog" aria-modal="true">' +
+          '<div class="modal-head">' +
+            '<div class="modal-title">' + title + '</div>' +
+            '<button class="modal-close" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="modal-body">' + bodyHtml + '</div>' +
+        '</div>';
+      document.body.appendChild(modalEl);
+      modalEl.addEventListener('click', function (e) {
+        if (e.target === modalEl) window.PlanexUI.closeModal();
+      });
+      modalEl.querySelector('.modal-close').addEventListener('click', function () {
+        window.PlanexUI.closeModal();
+      });
+    },
+
+    closeModal: function () {
+      if (modalEl) { modalEl.remove(); modalEl = null; }
+    },
+
+    lightbox: function (src) {
+      const lb = document.getElementById('lightbox');
+      const img = document.getElementById('lightbox-img');
+      if (!lb || !img) return;
+      img.src = src;
+      lb.classList.add('open');
+    }
+  };
+
+  /* ---------------- App ---------------- */
+  const NAV = [
+    { view: 'dashboard', label: 'Dashboard', icon: 'home', step: '' },
+    { view: 'ai', label: 'Planex AI', icon: 'sparkles', step: '1' },
+    { view: 'docket', label: 'Design Docket', icon: 'docket', step: '2' },
+    { view: 'quotation', label: 'Quotation', icon: 'rupee', step: '3' },
+    { view: 'execution', label: 'Execution', icon: 'build', step: '4' }
+  ];
+
+  const LABELS = { dashboard: 'Dashboard', ai: 'Planex AI', docket: 'Design Docket', quotation: 'Quotation', execution: 'Execution Dockets' };
+
+  function moduleFor(view) {
+    const M = window.PlanexModules;
+    switch (view) {
+      case 'ai': return M.PlanexAI;
+      case 'docket': return M.DesignDocket;
+      case 'quotation': return M.Quotation;
+      case 'execution': return M.Execution;
+      default: return M.Dashboard;
+    }
+  }
+
+  function renderView() {
+    const view = window.PlanexStore.state.activeView;
+    const el = document.getElementById('app-view');
+    if (!el) return;
+    el.innerHTML = '';
+    const mod = moduleFor(view);
+    if (mod && mod.render) mod.render(el);
+    el.scrollTop = 0;
+    window.scrollTo({ top: 0 });
+    updateChrome();
+  }
+
+  function navigate(view) {
+    window.PlanexStore.setView(view);
+    location.hash = view;
+    renderView();
+    closeSidebar();
+  }
+
+  function updateChrome() {
+    const S = window.PlanexStore.state;
+    const ic = window.PlanexIcons.get;
+
+    // crumb
+    const crumb = document.getElementById('crumb-current');
+    if (crumb) crumb.textContent = LABELS[S.activeView] || 'Dashboard';
+
+    // sidebar nav
+    const nav = document.getElementById('sidebar-nav');
+    if (nav) {
+      nav.innerHTML = NAV.map(function (item) {
+        const active = item.view === S.activeView ? 'active' : '';
+        return '<button class="nav-link ' + active + '" data-nav="' + item.view + '">' +
+          ic(item.icon) + '<span>' + item.label + '</span>' +
+          (item.step ? '<span class="nav-step">' + item.step + '</span>' : '') +
+          '</button>';
+      }).join('');
+    }
+
+    // bottom nav
+    const bn = document.getElementById('bottom-nav');
+    if (bn) {
+      bn.innerHTML = '<div class="bottom-nav-inner">' + NAV.map(function (item) {
+        const active = item.view === S.activeView ? 'active' : '';
+        return '<button class="bn-item ' + active + '" data-nav="' + item.view + '">' +
+          ic(item.icon) + '<span>' + item.label.split(' ')[0] + '</span></button>';
+      }).join('') + '</div>';
+    }
+
+    // project status card
+    const pn = document.getElementById('psc-project-name');
+    if (pn) pn.textContent = S.project.name;
+    const stageOrder = ['ideate', 'docket', 'quotation', 'execution'];
+    let stageIdx = stageOrder.indexOf(S.project.stage === 'plan' ? 'docket' : S.project.stage);
+    if (S.selectedVendorId) stageIdx = Math.max(stageIdx, 2);
+    if (S.timeline.some(function (p) { return p.progress > 0; })) stageIdx = 3;
+    if (stageIdx < 0) stageIdx = 0;
+    const stageLabels = ['Ideate', 'Design Docket', 'Quotation', 'Execution'];
+    const sl = document.getElementById('psc-stage-label');
+    if (sl) sl.textContent = stageLabels[stageIdx];
+    const ss = document.getElementById('psc-stage-step');
+    if (ss) ss.textContent = (stageIdx + 1) + ' / 4';
+    const bar = document.getElementById('psc-bar-fill');
+    if (bar) bar.style.width = ((stageIdx + 1) / 4 * 100) + '%';
+
+    // delegate nav clicks
+    document.querySelectorAll('[data-nav]').forEach(function (el) {
+      if (el.__navBound) return;
+      el.__navBound = true;
+      el.addEventListener('click', function () { navigate(el.getAttribute('data-nav')); });
+    });
+  }
+
+  /* ---------------- Theme ---------------- */
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#09090b' : '#fafafa');
+  }
+
+  /* ---------------- Sidebar (mobile) ---------------- */
+  function openSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if (sb) sb.classList.add('open');
+    if (ov) ov.classList.add('open');
+  }
+  function closeSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if (sb) sb.classList.remove('open');
+    if (ov) ov.classList.remove('open');
+  }
+
+  /* ---------------- Init ---------------- */
+  function init() {
+    const store = window.PlanexStore;
+    const S = store.state;
+
+    // theme
+    applyTheme(S.theme);
+
+    // restore view from hash
+    const hash = (location.hash || '').replace('#', '');
+    if (hash && LABELS[hash]) S.activeView = hash;
+
+    // overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    overlay.id = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', closeSidebar);
+
+    // menu toggle
+    const menu = document.getElementById('menu-toggle');
+    if (menu) menu.addEventListener('click', openSidebar);
+
+    // theme toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    if (themeBtn) themeBtn.addEventListener('click', function () {
+      const next = store.state.theme === 'dark' ? 'light' : 'dark';
+      store.setTheme(next);
+      applyTheme(next);
+      renderView();
     });
 
-    // Initial render
-    this.renderCurrentView();
-    this.updateHeaderBadges();
-  }
-
-  initHeader() {
-    // Nav Pillar Buttons
-    document.querySelectorAll('.nav-pillar-btn[data-view]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const view = btn.getAttribute('data-view');
-        stateManager.setActiveView(view);
+    // currency
+    const cur = document.getElementById('currency-select');
+    if (cur) {
+      cur.value = S.currency;
+      cur.addEventListener('change', function () {
+        store.setCurrency(cur.value);
+        renderView();
+        window.PlanexUI.toast('Currency changed to ' + cur.value);
       });
+    }
+
+    // reset
+    const reset = document.getElementById('reset-demo');
+    if (reset) reset.addEventListener('click', function () {
+      if (confirm('Reset the demo project back to its starting state?')) {
+        store.reset();
+        applyTheme(store.state.theme);
+        const c = document.getElementById('currency-select');
+        if (c) c.value = store.state.currency;
+        renderView();
+        window.PlanexUI.toast('Project reset to demo state.');
+      }
     });
 
-    // Currency Switcher
-    const currencySelect = document.getElementById('currency-selector');
-    if (currencySelect) {
-      currencySelect.value = stateManager.state.currentCurrency;
-      currencySelect.addEventListener('change', (e) => {
-        stateManager.setCurrency(e.target.value);
-        this.showToast(`Currency changed to ${e.target.value}`);
-      });
-    }
+    // lightbox
+    const lbClose = document.getElementById('lightbox-close');
+    const lb = document.getElementById('lightbox');
+    if (lbClose) lbClose.addEventListener('click', function () { lb.classList.remove('open'); });
+    if (lb) lb.addEventListener('click', function (e) { if (e.target === lb) lb.classList.remove('open'); });
 
-    // Client Mode Toggle in Header
-    const clientToggle = document.getElementById('header-client-mode-toggle');
-    if (clientToggle) {
-      clientToggle.addEventListener('click', () => {
-        stateManager.toggleClientMode();
-        this.showToast(stateManager.state.isClientMode ? 'Client Mode Active: Margins hidden' : 'Designer Mode: Full margins shown');
-      });
-    }
-
-    // Light / Dark Theme Toggle
-    const themeToggle = document.getElementById('theme-toggle-btn');
-    if (themeToggle) {
-      themeToggle.addEventListener('click', () => {
-        document.body.classList.toggle('light-theme');
-        const isLight = document.body.classList.contains('light-theme');
-        themeToggle.innerText = isLight ? '🌙 Dark Studio' : '☀️ Linen Light';
-        this.showToast(isLight ? 'Switched to Linen Light Theme' : 'Switched to Architectural Dark Theme');
-      });
-    }
-
-    // Project Reset Button
-    const resetBtn = document.getElementById('btn-reset-demo');
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        if (confirm('Reset project back to default Bel-Air Penthouse demonstration data?')) {
-          stateManager.resetToDemo();
-          this.showToast('Project reset to initial demonstration state.');
-        }
-      });
-    }
-  }
-
-  updateHeaderBadges() {
-    const { activeView, isClientMode, products, tasks, snags } = stateManager.state;
-
-    // Update active nav button
-    document.querySelectorAll('.nav-pillar-btn[data-view]').forEach(btn => {
-      const view = btn.getAttribute('data-view');
-      btn.classList.toggle('active', view === activeView);
+    // keyboard: escape closes modal/lightbox
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { window.PlanexUI.closeModal(); if (lb) lb.classList.remove('open'); }
     });
 
-    // Client mode indicator in header
-    const clientToggle = document.getElementById('header-client-mode-toggle');
-    if (clientToggle) {
-      clientToggle.classList.toggle('active', isClientMode);
-      clientToggle.innerHTML = isClientMode
-        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> Client Presentation Mode`
-        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></line><line x1="1" y1="1" x2="23" y2="23"></line></svg> Designer View (Margins)`;
-    }
+    // chrome updates on state change
+    store.subscribe(updateChrome);
 
-    // Update counts on badges
-    const discBadge = document.getElementById('badge-count-discovery');
-    if (discBadge) discBadge.innerText = products.length;
-
-    const pmBadge = document.getElementById('badge-count-pm');
-    if (pmBadge) {
-      const openSnags = snags.filter(s => s.status === 'Open').length;
-      pmBadge.innerText = `${tasks.length} tasks / ${openSnags} snags`;
-    }
-  }
-
-  renderCurrentView() {
-    const { activeView } = stateManager.state;
-    this.mainContainer.innerHTML = '';
-
-    switch (activeView) {
-      case 'overview':
-        renderOverview(this.mainContainer);
-        break;
-      case 'discovery':
-        renderDiscovery(this.mainContainer);
-        break;
-      case 'design':
-        renderDesign(this.mainContainer);
-        break;
-      case 'commercial':
-        renderCommercial(this.mainContainer);
-        break;
-      case 'project-mgmt':
-        renderProjectMgmt(this.mainContainer);
-        break;
-      default:
-        renderOverview(this.mainContainer);
-    }
-  }
-
-  bindEvents() {
-    // Listen for custom modal events
-    window.addEventListener('open-modal', (e) => {
-      this.openModal(e.detail.modalId);
+    // hash navigation
+    window.addEventListener('hashchange', function () {
+      const v = (location.hash || '').replace('#', '');
+      if (LABELS[v] && v !== store.state.activeView) {
+        store.state.activeView = v;
+        renderView();
+      }
     });
 
-    window.addEventListener('open-spec-sheet', (e) => {
-      this.openSpecSheetModal(e.detail.productId);
-    });
-
-    window.addEventListener('show-toast', (e) => {
-      this.showToast(e.detail.message);
-    });
-
-    window.resetFilters = () => {
-      stateManager.setSelectedRoom('all');
-      this.renderCurrentView();
-    };
+    renderView();
   }
 
-  initModals() {
-    // Close modal on backdrop click
-    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-      backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) {
-          backdrop.classList.remove('open');
-        }
-      });
-    });
+  window.PlanexApp = {
+    navigate: navigate,
+    renderView: renderView,
+    updateChrome: updateChrome
+  };
 
-    // Close buttons inside modals
-    document.querySelectorAll('.btn-close-modal').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const modal = btn.closest('.modal-backdrop');
-        if (modal) modal.classList.remove('open');
-      });
-    });
-
-    // Add Product Form submit
-    const addProductForm = document.getElementById('form-add-product');
-    if (addProductForm) {
-      addProductForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const name = document.getElementById('input-prod-name').value;
-        const category = document.getElementById('input-prod-category').value;
-        const room = document.getElementById('input-prod-room').value;
-        const vendor = document.getElementById('input-prod-vendor').value;
-        const finish = document.getElementById('input-prod-finish').value;
-        const width = parseInt(document.getElementById('input-prod-w').value, 10) || 1200;
-        const depth = parseInt(document.getElementById('input-prod-d').value, 10) || 800;
-        const height = parseInt(document.getElementById('input-prod-h').value, 10) || 750;
-        const tradeCost = parseFloat(document.getElementById('input-prod-cost').value) || 2000;
-        const markup = parseFloat(document.getElementById('input-prod-markup').value) || 35;
-        const imageUrl = document.getElementById('input-prod-image').value || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80';
-
-        stateManager.addProduct({
-          name,
-          category,
-          room,
-          vendor,
-          sku: `CUSTOM-${Date.now().toString().slice(-4)}`,
-          style: 'Bespoke Contemporary',
-          finish,
-          dimensions: { width, depth, height, unit: 'mm' },
-          tradeCost,
-          markupPercent: markup,
-          imageUrl,
-          leadTimeWeeks: 6,
-          sustainabilityScore: 'Grade A',
-          floorplan: { x: 380, y: 240, width: Math.round(width / 25), height: Math.round(depth / 25), rotation: 0 }
-        });
-
-        document.getElementById('modal-add-product').classList.remove('open');
-        addProductForm.reset();
-        this.showToast(`Added "${name}" to project FF&E schedule!`);
-      });
-    }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
-
-  openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.classList.add('open');
-  }
-
-  openSpecSheetModal(productId) {
-    const product = stateManager.state.products.find(p => p.id === productId);
-    if (!product) return;
-
-    const modal = document.getElementById('modal-spec-sheet');
-    const container = document.getElementById('spec-sheet-render-area');
-    const room = stateManager.state.rooms.find(r => r.id === product.room);
-    const { project, isClientMode } = stateManager.state;
-
-    container.innerHTML = `
-      <div class="spec-sheet-container">
-        <!-- SPEC HEADER -->
-        <div class="spec-sheet-header">
-          <div>
-            <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.15em; color:#888;">
-              ${project.name} • ARCHITECTURAL SPECIFICATION CUT SHEET
-            </div>
-            <h1 class="spec-sheet-title">${product.name}</h1>
-            <div style="font-size:0.85rem; color:#666; margin-top:4px;">
-              Specification Code: <strong>${product.sku}</strong> | Allocated Room: <strong>${room ? room.name : 'General'}</strong>
-            </div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:1.4rem; font-weight:700; color:#121316;">${stateManager.formatCurrency(product.clientPrice)}</div>
-            <div style="font-size:0.75rem; color:#777;">Approved Client Unit Price</div>
-            ${!isClientMode ? `
-              <div style="font-size:0.75rem; color:#B45309; font-weight:600; margin-top:2px;">
-                Wholesale Trade Cost: ${stateManager.formatCurrency(product.tradeCost)} (+${product.markupPercent}% markup)
-              </div>
-            ` : ''}
-          </div>
-        </div>
-
-        <!-- SPEC GRID: IMAGE + TECH SPECS -->
-        <div class="spec-sheet-grid">
-          <div>
-            <img src="${product.imageUrl}" alt="${product.name}" class="spec-sheet-image">
-            <div style="font-size:0.72rem; color:#888; margin-top:6px; text-align:center;">
-              Visual reference for fabrication & site placement
-            </div>
-          </div>
-
-          <div>
-            <h3 style="font-family:var(--font-serif); font-size:1.15rem; margin-bottom:12px; color:#111;">Technical Specifications</h3>
-            <table class="spec-detail-table">
-              <tr>
-                <th>Category</th>
-                <td>${product.category}</td>
-              </tr>
-              <tr>
-                <th>Manufacturer / Vendor</th>
-                <td>${product.vendor}</td>
-              </tr>
-              <tr>
-                <th>Vendor Contact</th>
-                <td>${product.vendorContact || 'procurement@atelier.com'}</td>
-              </tr>
-              <tr>
-                <th>Specified Finish / Material</th>
-                <td>${product.finish}</td>
-              </tr>
-              <tr>
-                <th>Dimensions (W × D × H)</th>
-                <td>${product.dimensions.width}mm × ${product.dimensions.depth}mm × ${product.dimensions.height}mm</td>
-              </tr>
-              <tr>
-                <th>Lead Time to Site</th>
-                <td>${product.leadTimeWeeks} Weeks from PO Deposit</td>
-              </tr>
-              <tr>
-                <th>Environmental & Sustainability</th>
-                <td>${product.sustainabilityScore || 'Grade A'}</td>
-              </tr>
-              <tr>
-                <th>Sample Library Status</th>
-                <td><span style="color:#059669; font-weight:600;">${product.sampleStatus}</span></td>
-              </tr>
-              <tr>
-                <th>Procurement Status</th>
-                <td><span style="color:#2563EB; font-weight:600;">${product.procurementStatus}</span></td>
-              </tr>
-            </table>
-
-            <div style="margin-top:16px;">
-              <h4 style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">Description & Scope of Work:</h4>
-              <p style="font-size:0.82rem; color:#4B5563; line-height:1.5;">${product.description || 'Custom architectural furnishing specified for the Bel-Air Penthouse.'}</p>
-            </div>
-
-            <div style="margin-top:12px;">
-              <h4 style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">Care & Maintenance:</h4>
-              <p style="font-size:0.8rem; color:#6B7280; line-height:1.4;">${product.careInstructions || 'Wipe with microfiber cloth. Professional care recommended.'}</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- FOOTER SIGN OFF -->
-        <div style="display:flex; justify-content:space-between; align-items:flex-end; border-top:1px solid #E5E7EB; padding-top:16px; margin-top:20px; font-size:0.75rem; color:#9CA3AF;">
-          <div>
-            <div>AtelierFlow Architecture & Interior Lifecycle System</div>
-            <div>Lead Architect: ${project.leadArchitect}</div>
-          </div>
-          <div>
-            Client Approval Signature: _______________________ Date: _________
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Hook up print cut sheet button inside modal
-    const printBtn = document.getElementById('btn-print-cutsheet');
-    if (printBtn) {
-      printBtn.onclick = () => window.print();
-    }
-
-    modal.classList.add('open');
-  }
-
-  initToasts() {
-    this.toastContainer = document.getElementById('toast-container');
-  }
-
-  showToast(message) {
-    if (!this.toastContainer) return;
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-primary);"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-      <span>${message}</span>
-    `;
-    this.toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(100%)';
-      toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
-    }, 3500);
-  }
-}
-
-// Bootstrap on DOM Ready
-document.addEventListener('DOMContentLoaded', () => {
-  window.app = new AppController();
-});
+})();

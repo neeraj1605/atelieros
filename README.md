@@ -1,75 +1,131 @@
-# AtelierFlow: Interior Architecture & Project Lifecycle OS
+# Planex AI — Plan & Execute
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-Modern%20Web-blue.svg)]()
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(Pure%20HTML%2FCSS%2FJS)-green.svg)]()
+An AI-assisted interior design product for **homeowners (B2C)**. Planex AI walks a customer through the full journey — from an idea conversation to a signed-off, executed project — with a guided design docket, vendor quotations, and execution tracking.
 
-> **AtelierFlow** is a unified operating system mapping the complete interior architecture project journey across four interconnected pillars: **Product Discovery (FF&E)** ➔ **Design & Spatial Mapping** ➔ **Commercial & Procurement** ➔ **Project Management & Execution**.
+> **Live, zero-dependency app.** Pure HTML/CSS/JS. No build step, no package manager. Open it or host it anywhere.
 
 ---
 
-## 🏛️ The 4 Core Pillars
+## The B2C Journey
 
 ```
-                                  ATELIERFLOW LIFECYCLE MAP
-                                  
-  [1. Product Discovery]  ──►  [2. Design & Spatial]  ──►  [3. Commercial]     ──►  [4. Project Mgmt]
-  • FF&E Catalog (16+ Items)   • 2D Scaled Floorplan        • Dynamic BOQ / Matrix       • 7-Phase Gantt Timeline
-  • Interactive Moodboard      • Furniture Footprints       • Trade vs Client Pricing    • Multi-Trade Kanban
-  • Sample Tracker             • Room-by-Room Schedules     • Spec Sheet / Cut Sheets    • Defect Snagging Pins
-  • Custom Product Creator     • 3D Concept Hotspot Pins    • PO & Procurement Pipeline  • Turnkey Handover Sign
-                                             │                          │
-                                             └──────────┬───────────────┘
-                                                        ▼
-                                          Unified Data & State Engine
-                                       (Auto-save, Export, Project JSON)
+  ① Ideate            ② Design Docket       ③ Quotation           ④ Execution
+  Planex AI chat  →   Floorplan + BOQ   →   Compare vendors   →   Track + QC
+  upload images       furniture layout      specs stay locked      milestones
+  & site plans        editable quantities   line-by-line          handover
 ```
 
----
-
-### 1. Product Discovery & FF&E Curation
-- **Curated Specifications**: Filterable by Room, Category (*Seating, Tables, Lighting, Millwork, Textiles, Sanitaryware, Art*), and Style (*Japandi Modern, Mid-Century, Contemporary*).
-- **Interactive Freeform Moodboard Studio**: Freeform canvas with draggable cutouts, rotation, concepts, and an automatically extracted 6-tone architectural color palette.
-- **Physical Sample Tracker**: Track stone tiles, wood veneers, fabrics, and metal finishes with studio shelf locations and client sign-offs.
-- **Custom Product Builder**: Add custom bespoke FF&E items.
-
-### 2. Design & Spatial Mapping
-- **2D Scaled Floorplan (1:50)**: Pre-mapped penthouse layout rendering 6 architectural spaces (*Great Room, Dining Pavilion, Master Suite, Chef's Kitchen, Executive Study, Terrace*).
-- **Interactive Furniture Footprints**: Draggable items with 45° rotation steps and live spec inspection.
-- **Circulation & Clearance Layer**: Visualizes 900mm circulation and walkway clearance corridors.
-- **3D Render Gallery with Client Review Hotspots**: Pin-drop feedback threads directly on photorealistic renders.
-
-### 3. Commercial & Procurement Engine
-- **Dynamic Bill of Quantities (BOQ)**: Live matrix with editable quantity and trade markup fields.
-- **Client Presentation Mode**: Instant 1-click toggle to conceal trade costs, wholesale vendor margins, and internal markups.
-- **Architectural Spec Sheets (Cut Sheets)**: Standardized, printable/PDF-ready specification cut sheets with high-res imagery and signature blocks.
-- **Purchase Order (PO) Pipeline**: Vendor order tracking with 50% deposit and delivery milestones.
-
-### 4. Project Management & Turnkey Execution
-- **7-Phase Gantt Timeline**: Sequential architectural phases with interactive milestone checklists.
-- **Multi-Trade Kanban Execution Board**: Organize Joiners, Electricians, Stone Masons, Painters, and Stylists across *Backlog, To Do, In Progress, Quality Review, and Completed*.
-- **Site Snagging / Defect Punch List**: Defect pins on floorplans with contractor assignment and severity tracking (*Critical, Major, Minor, Cosmetic*).
-- **White-Glove Turnkey Handover Protocol**: Commissioning checklist and an **HTML5 Canvas Digital Signature Pad** for client sign-off.
+| Stage | Module | What the customer does |
+|---|---|---|
+| **1. Ideate** | **Planex AI** | Chats with an interior-design assistant, uploads room photos and site plans, builds an evolving project brief. |
+| **2. Plan** | **Design Docket** | Reviews a scaled floorplan with furniture footprints and an editable, itemised Bill of Quantities. |
+| **3. Buy** | **Quotation** | Gets matched to verified vendors, compares quotes line-by-line, and selects one. Component specifications are locked so nothing gets swapped silently. |
+| **4. Execute** | **Execution Dockets** | Tracks the project phase timeline, signs off milestones, logs QC/snag items, and runs the handover checklist. |
 
 ---
 
-## 🚀 Getting Started
+## Project Structure
 
-AtelierFlow has **zero dependencies** and requires no build tools or package managers:
+```
+index.html                 App shell (sidebar, topbar, bottom nav, modals)
+serve.ps1                  Local static server (PowerShell, no dependencies)
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/neeraj1605/atelieros.git
-   ```
-2. Double click `index.html` or open it directly in any browser:
-   ```bash
-   start index.html
-   ```
+css/
+  design-system.css        Design tokens, typography, primitives
+  app.css                  Layout + module styles
+
+js/
+  data.js                  Seed project (rooms, BOQ, vendors, timeline, QC)
+  store.js                 Reactive state, localStorage, financial calculators
+  ai-engine.js             Domain-aware interior assistant responses
+  app.js                   Icons, UI helpers (toast/modal/lightbox), router
+  modules/
+    dashboard.js           Lifecycle overview + stage rail + stats
+    planex-ai.js           Chat + image / site-plan uploads
+    design-docket.js       Floorplan canvas + furniture layout + BOQ
+    quotation.js           Vendor quotes, comparison, spec-lock, PDF export
+    execution.js           Timeline, milestones, QC, handover
+
+assets/                    (reserved for static assets)
+```
+
+Module folders are named after the actual product stages so the codebase maps 1:1 to the customer journey.
 
 ---
 
-## 💻 Tech Stack
-- **Architecture**: Modern HTML5, ES6 Modules / Standalone Bundle
-- **Styling**: Vanilla CSS Design System with CSS custom properties, glassmorphism, and print media queries
-- **Canvas Engines**: Scaled HTML5 2D Floorplan Canvas, Freeform Moodboard Canvas, and Digital Signature Canvas
-- **Storage**: `localStorage` auto-sync and portable JSON export/import
+## Run Locally
+
+Requires **PowerShell** (already on Windows). No Node, no npm.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File serve.ps1 -Port 8080
+```
+
+Then open **http://localhost:8080/**.
+
+You can also just double-click `index.html` — everything works from `file://` too.
+
+---
+
+## Deploy (Go Live)
+
+Because it's a static site, deploy in seconds on any of these:
+
+| Host | How |
+|---|---|
+| **Netlify** | Drag the folder onto app.netlify.com, or connect the repo. |
+| **Vercel** | `vercel` in the repo root, framework preset **Other**. |
+| **GitHub Pages** | Push to `main`, enable Pages → serve from root. |
+| **Cloudflare Pages** | Connect repo, build command empty, output `/`. |
+| **Any web host** | Upload `index.html`, `css/`, `js/` via FTP. |
+
+No environment variables are required for the current experience.
+
+---
+
+## Features
+
+**Planex AI (Ideate)**
+- Conversational interior assistant with intent handling for cost, kitchens, living rooms, bedrooms, storage, lighting, flooring, styles, timelines, and vendors.
+- Image and **site-plan upload** with live preview and lightbox.
+- Uploads update the evolving project brief (`store.context`), which flows into later stages.
+- Suggested prompts and a project-brief viewer.
+
+**Design Docket (Plan)**
+- Scaled 2D floorplan canvas (≈1:50) per room with a metric grid and dimension labels.
+- Automatic **furniture footprints** with clearances, tailored per room type.
+- Toggle grid and furniture layers.
+- Editable BOQ (quantity and rate), live subtotal, 18% GST, and budget variance.
+- Add custom BOQ items; print / save as PDF.
+
+**Quotation (Buy)**
+- Three matched vendors with ratings, lead time, warranty, and payment terms.
+- Quotes derived from the *same* BOQ — only rates differ, so **specifications stay locked**.
+- Line-by-line comparison table highlighting the lowest cost per item.
+- Select a vendor, then export a print-ready quotation PDF.
+
+**Execution Dockets (Execute)**
+- 7-phase timeline with per-phase progress and milestone checklists.
+- Overall progress, phases complete, open-QC and current-phase KPIs.
+- Quality-check / snag list with severity, trade, and resolution.
+- Daily site docket (work log) with AI flags.
+- Handover checklist.
+
+**Throughout**
+- Light / dark theme.
+- Multi-currency (INR, USD, EUR, AED) with live conversion.
+- Responsive: sidebar on desktop, bottom navigation on mobile.
+- State persists to `localStorage`; one-click reset to the demo project.
+
+---
+
+## Roadmap (Production Backend)
+
+The current app is fully functional client-side with a local assistant. To take it to production:
+
+1. **Planex AI via OpenRouter** — swap `js/ai-engine.js`'s `respond()` for a server call to OpenRouter (Claude / GPT / Gemini), passing the project context as the system prompt.
+2. **Persistent project store** — move `store.js` state to Postgres behind an API.
+3. **WhatsApp-first onboarding** — Meta WhatsApp Cloud API webhook so customers can start in chat; the web app becomes the deep-work surface.
+4. **Site-plan vision** — send uploaded plans to a vision model to auto-extract rooms and dimensions.
+5. **Vendor network** — real quotations, PDF generation server-side, and acceptance tracking.
+6. **Auth** — account and project access for homeowners.
