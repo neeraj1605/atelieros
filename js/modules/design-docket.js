@@ -8,6 +8,7 @@ window.PlanexModules = window.PlanexModules || {};
 
 window.PlanexModules.DesignDocket = (function () {
   let selectedId = 'furniture';
+  let currentUnits = [];
 
   function store() { return window.PlanexStore; }
   function ic(n) { return window.PlanexIcons.get(n); }
@@ -38,6 +39,58 @@ window.PlanexModules.DesignDocket = (function () {
       </div>`;
   }
 
+  function unitSourceSection(d) {
+    const map = { furniture: 'units', wardrobe: 'wardrobes', kitchen: 'cabinets' };
+    return map[d.id] || null;
+  }
+
+  function shopDrawings(d) {
+    const key = unitSourceSection(d);
+    if (!key || !window.PlanexDetailEngine) return '';
+    const s = d.sections.filter(function (x) { return x.key === key; })[0];
+    if (!s || !s.rows.length) return '';
+
+    const markIdx = s.columns.findIndex(function (c) { return /^mark$/i.test(c); });
+    const nameIdx = s.columns.findIndex(function (c) { return /unit|type/i.test(c); });
+    const sizeIdx = s.columns.findIndex(function (c) { return /size|spec/i.test(c); });
+    currentUnits = s.rows.map(function (r) {
+      return {
+        mark: markIdx >= 0 ? r[markIdx] : '',
+        name: nameIdx >= 0 ? r[nameIdx] : 'Unit',
+        size: sizeIdx >= 0 ? r[sizeIdx] : ''
+      };
+    }).filter(function (u) { return u.name && u.name !== 'Unit'; });
+
+    if (!currentUnits.length) return '';
+    return `
+      <div class="docket-section">
+        <div class="docket-section-title">Shop Drawings — Elevation &amp; Section</div>
+        <p class="muted text-sm" style="margin-bottom:10px;">Indicative coordination drawings generated from the schedule (dimensions in mm). Verify on site before fabrication.</p>
+        <div class="detail-grid">
+          ${currentUnits.map(function (u, i) {
+            return `
+              <div class="detail-card">
+                <div class="detail-head">${esc(u.mark ? u.mark + ' · ' : '')}${esc(u.name)}</div>
+                <div class="detail-canvas"><canvas data-elev="${i}"></canvas></div>
+                <div class="detail-canvas"><canvas data-sect="${i}"></canvas></div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  function drawDetails(container) {
+    if (!window.PlanexDetailEngine) return;
+    container.querySelectorAll('[data-elev]').forEach(function (cv) {
+      const u = currentUnits[Number(cv.getAttribute('data-elev'))];
+      if (u) window.PlanexDetailEngine.drawUnit(cv, u);
+    });
+    container.querySelectorAll('[data-sect]').forEach(function (cv) {
+      const u = currentUnits[Number(cv.getAttribute('data-sect'))];
+      if (u) window.PlanexDetailEngine.drawSection(cv, u);
+    });
+  }
+
   function documentView(d) {
     if (!d) return '<p class="muted">No docket selected.</p>';
     const refs = d.refs || {};
@@ -60,6 +113,7 @@ window.PlanexModules.DesignDocket = (function () {
           </div>
         </div>
         ${d.sections.map(function (s) { return sectionTable(d, s); }).join('')}
+        ${shopDrawings(d)}
         ${d.notes && d.notes.length ? `
           <div class="docket-section">
             <div class="docket-section-title">Expert Notes</div>
@@ -212,6 +266,8 @@ window.PlanexModules.DesignDocket = (function () {
     container.querySelectorAll('[data-lightbox]').forEach(function (el) {
       el.addEventListener('click', function () { window.PlanexUI.lightbox(el.getAttribute('data-lightbox')); });
     });
+
+    drawDetails(container);
   }
 
   function generateDockets() {

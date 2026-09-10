@@ -743,6 +743,13 @@
 .docket-notes { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px; }
 .docket-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
 
+/* Shop drawings */
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.detail-card { border: 1px solid var(--border); border-radius: var(--r-md); background: #fff; padding: 10px; }
+.detail-head { font-size: 12.5px; font-weight: 650; margin-bottom: 6px; color: #18181b; }
+.detail-canvas { margin-bottom: 8px; }
+.detail-canvas canvas { display: block; width: 100%; height: auto; }
+
 /* ---------- Print ---------- */@media print {
   .sidebar,
   .sidebar-overlay,
