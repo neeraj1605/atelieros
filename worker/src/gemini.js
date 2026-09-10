@@ -1,4 +1,4 @@
-// Gemini API integration: streaming prose (Flash) + structured extraction (Flash-Lite).
+// Gemini API integration: streaming prose, vision critique, and structured extraction.
 const DEFAULT_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // GEMINI_API_BASE lets tests point at a local mock. Never set it in production.
@@ -25,14 +25,9 @@ export function toGeminiContents(messages, attachments) {
   });
 }
 
-export async function streamReply(env, systemInstruction, contents, onDelta) {
-  const model = env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash';
+// Shared SSE streamer for Gemini generateContent.
+async function streamGenerateContent(env, model, body, onDelta) {
   const url = `${apiBase(env)}/${model}:streamGenerateContent?alt=sse&key=${env.GEMINI_API_KEY}`;
-  const body = {
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-  };
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -73,15 +68,43 @@ export async function streamReply(env, systemInstruction, contents, onDelta) {
         }
         if (obj?.usageMetadata?.totalTokenCount) tokens = obj.usageMetadata.totalTokenCount;
       } catch {
-        // partial JSON across chunk boundary — ignore
+        // partial JSON across a chunk boundary — ignore
       }
     }
   }
   return { text: full, tokens };
 }
 
+export async function streamReply(env, systemInstruction, contents, onDelta) {
+  const model = env.GEMINI_FLASH_MODEL || 'gemini-3.6-flash';
+  const body = {
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    contents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+  };
+  return streamGenerateContent(env, model, body, onDelta);
+}
+
+// The assistant looks at its own render and validates it.
+// Uses a separate multimodal model so it does not contend with the reply model's quota.
+export async function streamCritique(env, systemInstruction, userPrompt, imageBase64, mime, onDelta) {
+  const model = env.GEMINI_VISION_MODEL || env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
+  const body = {
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    contents: [{
+      role: 'user',
+      parts: [
+        { text: userPrompt },
+        { inlineData: { mimeType: mime || 'image/jpeg', data: imageBase64 } }
+      ]
+    }],
+    generationConfig: { temperature: 0.6, maxOutputTokens: 400 }
+  };
+  return streamGenerateContent(env, model, body, onDelta);
+}
+
 export async function extractStructured(env, prompt) {
-  const model = env.GEMINI_LITE_MODEL || 'gemini-2.5-flash-lite';
+  const model = env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite';
   const url = `${apiBase(env)}/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],

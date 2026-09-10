@@ -349,6 +349,7 @@ window.PlanexStore = (function () {
       budget: state.project.budget,
       currency: state.currency,
       financials: getFinancials(),
+      brief: state.context,
       rooms: state.rooms.map(function (r) { return { id: r.id, name: r.name, lengthM: r.length, widthM: r.width }; }),
       boqLines: state.boq.map(function (b) {
         return { room: b.room, category: b.category, item: b.item, qty: b.qty, unit: b.unit, rate: b.rate };

@@ -138,4 +138,30 @@ export function emptyContext() {
   };
 }
 
+const IMAGE_ASPECTS = new Set(['16:9', '4:3', '1:1', '3:4', '9:16']);
+
+// Validate an image spec coming from the model. Returns null unless it truly wants one.
+export function sanitizeImageSpec(spec) {
+  if (!isPlainObject(spec)) return null;
+  if (spec.generate !== true) return null;
+  const prompt = typeof spec.prompt === 'string' ? spec.prompt.replace(/\s+/g, ' ').trim() : '';
+  if (prompt.length < 8) return null;
+  return {
+    generate: true,
+    prompt: clampString(prompt).slice(0, 700),
+    reason: clampString(spec.reason || ''),
+    aspect: IMAGE_ASPECTS.has(spec.aspect) ? spec.aspect : '16:9'
+  };
+}
+
+export function aspectToSize(aspect) {
+  switch (aspect) {
+    case '4:3': return { width: 1024, height: 768 };
+    case '1:1': return { width: 1024, height: 1024 };
+    case '3:4': return { width: 768, height: 1024 };
+    case '9:16': return { width: 720, height: 1280 };
+    default: return { width: 1280, height: 720 };
+  }
+}
+
 export const ALLOWED_TOP = ALLOWED_TOP_KEYS;

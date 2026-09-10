@@ -169,6 +169,10 @@ window.PlanexAIClient = (function () {
       else if (event === 'reply.delta' && handlers.onDelta) handlers.onDelta(data.text || '');
       else if (event === 'context.patch' && handlers.onPatch) handlers.onPatch(data);
       else if (event === 'proposals' && handlers.onProposals) handlers.onProposals(data.proposals || []);
+      else if (event === 'image.pending' && handlers.onImagePending) handlers.onImagePending(data);
+      else if (event === 'image.ready' && handlers.onImageReady) handlers.onImageReady(data);
+      else if (event === 'critique.delta' && handlers.onCritiqueDelta) handlers.onCritiqueDelta(data.text || '');
+      else if (event === 'image.failed' && handlers.onImageFailed) handlers.onImageFailed(data);
       else if (event === 'done' && handlers.onDone) handlers.onDone(data);
       else if (event === 'error' && handlers.onError) handlers.onError(data);
     }

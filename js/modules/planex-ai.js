@@ -1,5 +1,7 @@
 /* ============================================================
-   Planex AI — Chat + Upload Module (hosted Gemini + offline fallback)
+   Planex AI — Chat + Upload Module
+   Seamless visualisation: the assistant renders inside the turn and
+   then validates its own render. Falls back to the offline assistant.
    ============================================================ */
 window.PlanexModules = window.PlanexModules || {};
 
@@ -21,24 +23,20 @@ window.PlanexModules.PlanexAI = (function () {
     return window.PlanexAIClient && window.PlanexAIClient.isEnabled();
   }
 
-  function nowTime() {
-    return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  }
-
   function brainLabel() {
     return hosted() ? 'Online • Gemini (hosted)' : 'Online • Offline assistant';
   }
 
+  /* ---------------- Render / bind ---------------- */
   function render(container) {
     const S = store().state;
-    const D = window.PlanexData;
 
     container.innerHTML = `
       <div class="view-inner">
         <div class="module-header anim">
           <div>
             <h1 class="serif">Planex AI</h1>
-            <p>Your interior design assistant. Upload images and site plans, and shape the whole project in conversation.</p>
+            <p>Your interior design assistant. I'll reply, show you renders as the design takes shape, and keep the brief evolving.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm" id="ai-add-plan">${ic('upload')} Upload Site Plan</button>
@@ -67,14 +65,14 @@ window.PlanexModules.PlanexAI = (function () {
               <textarea class="composer-input" id="composer-input" rows="1"
                 placeholder="Describe your space, ask about costs, or attach a site plan..."></textarea>
               <div class="composer-tools">
-                <button class="icon-btn" id="tool-render" title="Generate a render">${ic('wand')}</button>
+                <button class="icon-btn" id="tool-render" title="Ask for a render">${ic('wand')}</button>
                 <button class="icon-btn" id="tool-image" title="Attach image">${ic('image')}</button>
                 <button class="icon-btn" id="tool-plan" title="Attach site plan">${ic('plan')}</button>
                 <button class="send-btn" id="send-btn" title="Send">${ic('send')}</button>
               </div>
             </div>
             <div class="composer-hint">
-              <span>Tip: attach a site plan photo and I'll map rooms automatically.</span>
+              <span>Renders appear automatically at design moments — or tap the wand to ask for one.</span>
               <span style="margin-left:auto;">${S.boq.length} BOQ items tracked</span>
             </div>
           </div>
@@ -103,9 +101,13 @@ window.PlanexModules.PlanexAI = (function () {
     container.querySelector('#tool-image').addEventListener('click', clickImage);
     container.querySelector('#ai-add-plan').addEventListener('click', clickPlan);
     container.querySelector('#tool-plan').addEventListener('click', clickPlan);
+
+    // Wand = a conversational request for a render (no separate feature path).
     container.querySelector('#tool-render').addEventListener('click', () => {
-      const t = (input.value || '').trim();
-      generateRender(t || lastUserText());
+      const base = (input.value || '').trim();
+      input.value = '';
+      input.style.height = 'auto';
+      sendText(base ? (base + ' — can you show me what this would look like?') : 'Can you show me what this would look like?', []);
     });
 
     fileImage.addEventListener('change', (e) => handleFiles(e.target.files, 'image'));
@@ -134,6 +136,7 @@ window.PlanexModules.PlanexAI = (function () {
     });
   }
 
+  /* ---------------- Attachments ---------------- */
   function handleFiles(files, kind) {
     if (!files || !files.length) return;
     Array.from(files).forEach(file => {
@@ -178,29 +181,43 @@ window.PlanexModules.PlanexAI = (function () {
     });
   }
 
+  /* ---------------- Submit ---------------- */
   function submit() {
     if (streaming) return;
     const input = document.querySelector('#composer-input');
     const text = (input.value || '').trim();
     if (!text && !pending.length) return;
-
     const attachments = pending.slice();
-    const hasPlan = attachments.some(a => a.kind === 'plan');
-
-    attachments.forEach(a => store().addUpload(a));
-    store().addChatMessage('user', text || (hasPlan ? 'Uploaded a site plan.' : 'Uploaded an image.'), attachments);
-
-    input.value = '';
-    input.style.height = 'auto';
     pending = [];
     renderAttachments();
+    input.value = '';
+    input.style.height = 'auto';
+    sendText(text, attachments);
+  }
+
+  function sendText(text, attachments) {
+    if (streaming) return;
+    attachments = attachments || [];
+    const hasPlan = attachments.some(a => a.kind === 'plan');
+    attachments.forEach(a => store().addUpload(a));
+    store().addChatMessage('user', text || (hasPlan ? 'Uploaded a site plan.' : 'Uploaded an image.'), attachments);
     renderMessages();
 
-    if (hosted()) {
-      hostedTurn(text, attachments, hasPlan);
-    } else {
-      localTurn(text, attachments, hasPlan);
+    if (hosted()) hostedTurn(text, attachments, hasPlan);
+    else localTurn(text, attachments, hasPlan);
+  }
+
+  function offlineFallback(text, attachments, hasPlan, err) {
+    if (!err) {
+      return window.PlanexAI.respond(text, {
+        uploaded: (attachments || []).length > 0,
+        uploadKind: hasPlan ? 'plan' : 'image'
+      });
     }
+    return window.PlanexAI.respond(text, {
+      uploaded: (attachments || []).length > 0,
+      uploadKind: hasPlan ? 'plan' : 'image'
+    });
   }
 
   function localTurn(text, attachments, hasPlan) {
@@ -214,48 +231,77 @@ window.PlanexModules.PlanexAI = (function () {
       });
       typing = false;
       store().addChatMessage('assistant', reply, []);
-      if (hasPlan) {
-        store().updateContext({ notes: 'Site plan received. Rooms detected from the uploaded plan (AI estimate — verify).' });
-      }
+      if (hasPlan) store().updateContext({ notes: 'Site plan received. Rooms detected (AI estimate — verify).' });
       renderMessages();
     }, delay);
   }
 
+  /* ---------------- Hosted turn (segmented) ---------------- */
+  function streamBubble() {
+    const scroll = document.querySelector('#chat-scroll');
+    if (!scroll) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ai';
+    wrap.innerHTML = '<div class="msg-avatar">' + ic('sparkles') + '</div>' +
+      '<div class="msg-body"><div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div></div>';
+    scroll.appendChild(wrap);
+    scroll.scrollTop = scroll.scrollHeight;
+    return wrap.querySelector('.bubble');
+  }
+
+  function dropBubble(bubble) {
+    if (!bubble) return;
+    const msg = bubble.closest('.msg');
+    if (msg) msg.remove();
+  }
+
+  function setBubbleText(bubble, text) {
+    if (!bubble) return;
+    bubble.textContent = text;
+    const scroll = document.querySelector('#chat-scroll');
+    if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  }
+
   async function hostedTurn(text, attachments, hasPlan) {
     streaming = true;
-    const scroll = document.querySelector('#chat-scroll');
-    let tmp = null;
-    let bubble = null;
-
-    if (scroll) {
-      tmp = document.createElement('div');
-      tmp.className = 'msg ai';
-      tmp.innerHTML = '<div class="msg-avatar">' + ic('sparkles') + '</div>' +
-        '<div class="msg-body"><div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div></div>';
-      scroll.appendChild(tmp);
-      bubble = tmp.querySelector('.bubble');
-      scroll.scrollTop = scroll.scrollHeight;
-    }
-
-    let acc = '';
+    let prose = '';
     let proposals = [];
+    let critique = '';
+    let gotImage = false;
     let patched = false;
     let errored = false;
+
+    let bubble = streamBubble();
+    let critiqueBubble = null;
 
     try {
       await window.PlanexAIClient.send({
         message: text,
         attachments: attachments,
         state: store().getGroundingState(),
-        onDelta: (t) => {
-          acc += t;
-          if (bubble) { bubble.textContent = acc; scroll.scrollTop = scroll.scrollHeight; }
-        },
-        onPatch: (d) => {
-          patched = true;
-          store().applyContextPatch(d.patch, d.version);
-        },
+        onDelta: (t) => { prose += t; setBubbleText(bubble, prose); },
+        onPatch: (d) => { patched = true; store().applyContextPatch(d.patch, d.version); },
         onProposals: (list) => { proposals = list || []; },
+        onImagePending: () => {
+          const base = prose || '';
+          setBubbleText(bubble, base + (base ? '\n\n' : '') + '🎨 Working on a render — this can take up to a minute…');
+        },
+        onImageReady: (d) => {
+          gotImage = true;
+          // Finalise prose (with any proposals) as its own message.
+          dropBubble(bubble); bubble = null;
+          store().addChatMessage('assistant', prose || 'Here is how I picture it.', [], proposals.length ? { proposals: proposals } : {});
+          proposals = [];
+          store().addChatMessage('assistant', '🎨 Concept render' + (d.reason ? ' — ' + d.reason : ''), [
+            { kind: 'image', dataUrl: d.dataUrl, name: 'planex-render.jpg' }
+          ]);
+          store().addRender({ dataUrl: d.dataUrl, prompt: d.prompt });
+          renderMessages();
+          // New bubble for the assistant's validation of its own render.
+          critiqueBubble = streamBubble();
+        },
+        onCritiqueDelta: (t) => { critique += t; setBubbleText(critiqueBubble, critique); },
+        onImageFailed: () => { window.PlanexUI.toast('Could not generate a render just now — continuing.'); },
         onError: () => { errored = true; },
         onDone: () => {}
       });
@@ -264,29 +310,34 @@ window.PlanexModules.PlanexAI = (function () {
       window.PlanexUI.toast('Hosted assistant unavailable — using offline assistant.');
     }
 
-    if (!acc) {
-      acc = window.PlanexAI.respond(text, {
-        uploaded: attachments.length > 0,
-        uploadKind: hasPlan ? 'plan' : 'image'
-      });
-      if (bubble) bubble.textContent = acc;
+    // If no render came through, finalise the prose bubble.
+    if (bubble) {
+      const finalText = prose || offlineFallback(text, attachments, hasPlan, errored);
+      dropBubble(bubble); bubble = null;
+      store().addChatMessage('assistant', finalText, [], proposals.length ? { proposals: proposals } : {});
     }
 
-    if (tmp) tmp.remove();
-    store().addChatMessage('assistant', acc, [], proposals.length ? { proposals: proposals } : {});
-
-    if (patched) {
-      store().pushAudit && store().pushAudit('context.ai_update', {});
+    // Finalise the critique.
+    if (critiqueBubble) {
+      dropBubble(critiqueBubble); critiqueBubble = null;
+      if (critique) store().addChatMessage('assistant', critique, []);
     }
+
+    // Absolute fallback: nothing at all came back.
+    if (errored && !prose && !critique && !gotImage) {
+      store().addChatMessage('assistant', offlineFallback(text, attachments, hasPlan, true), []);
+    }
+
+    if (patched) store().pushAudit && store().pushAudit('context.ai_update', {});
     if (hasPlan) {
       store().updateContext({ notes: 'Site plan received. Rooms extracted as AI estimates — please verify dimensions.' });
     }
 
     streaming = false;
     renderMessages();
-    if (wantsRender(text)) generateRender(text);
   }
 
+  /* ---------------- Messages ---------------- */
   function renderMessages() {
     const scroll = document.querySelector('#chat-scroll');
     if (!scroll) return;
@@ -295,8 +346,7 @@ window.PlanexModules.PlanexAI = (function () {
     let html = '';
 
     if (S.chat.length <= 1 && !typing) {
-      const seed = S.chat[0];
-      html += bubble(seed, 0);
+      html += bubble(S.chat[0], 0);
       html += `
         <div style="display:flex;justify-content:center;margin-top:6px;">
           <div class="chat-suggestions">
@@ -386,12 +436,10 @@ window.PlanexModules.PlanexAI = (function () {
     const parts = String(ref).split(':');
     const msgIndex = Number(parts[0]);
     const propIndex = Number(parts[1]);
-    const S = store().state;
-    const msg = S.chat[msgIndex];
+    const msg = store().state.chat[msgIndex];
     if (!msg || !msg.proposals || !msg.proposals[propIndex]) return;
     const proposal = msg.proposals[propIndex];
-    const ok = store().applyProposal(proposal);
-    if (ok) {
+    if (store().applyProposal(proposal)) {
       proposal.applied = true;
       if (window.PlanexAIClient && window.PlanexAIClient.audit) {
         window.PlanexAIClient.audit('proposal.apply', { type: proposal.type, id: proposal.id });
@@ -408,14 +456,14 @@ window.PlanexModules.PlanexAI = (function () {
     const parts = String(ref).split(':');
     const msgIndex = Number(parts[0]);
     const propIndex = Number(parts[1]);
-    const S = store().state;
-    const msg = S.chat[msgIndex];
+    const msg = store().state.chat[msgIndex];
     if (!msg || !msg.proposals) return;
     msg.proposals.splice(propIndex, 1);
     store().commit();
     renderMessages();
   }
 
+  /* ---------------- Brief ---------------- */
   function showBrief() {
     const S = store().state;
     const c = S.context || {};
@@ -498,66 +546,6 @@ window.PlanexModules.PlanexAI = (function () {
         }
       });
     });
-  }
-
-  function wantsRender(text) {
-    return /\b(render|renders|3d|visuali[sz]e|mood ?board|photorealistic|image of|picture of|sketch|preview)\b/i.test(text || '');
-  }
-
-  function lastUserText() {
-    const chat = store().state.chat || [];
-    for (let i = chat.length - 1; i >= 0; i--) {
-      if (chat[i].role === 'user' && chat[i].text) return chat[i].text;
-    }
-    const c = store().state.context || {};
-    return [
-      c.project && c.project.spaceType,
-      (c.style && c.style.directions || []).join(' + ')
-    ].filter(Boolean).join(', ') || 'a modern Indian living room';
-  }
-
-  function buildRenderPromptFrom(text) {
-    const c = store().state.context || {};
-    const bits = [];
-    if (text) bits.push(text);
-    if (c.project && c.project.spaceType) bits.push(c.project.spaceType);
-    if (c.style && c.style.directions && c.style.directions.length) bits.push(c.style.directions.join(' + ') + ' style');
-    return bits.join(', ').slice(0, 600);
-  }
-
-  async function generateRender(promptText) {
-    if (!hosted()) {
-      window.PlanexUI.toast('Image generation needs the hosted assistant. Set workerUrl in config.');
-      return;
-    }
-    const prompt = buildRenderPromptFrom(promptText);
-    const idx = store().state.chat.length;
-    store().addChatMessage('assistant', '🎨 Creating your render — this takes a few seconds...', []);
-    renderMessages();
-
-    try {
-      const dataUrl = await window.PlanexAIClient.generateImage(prompt, { width: 1024, height: 768 });
-      const m = store().state.chat[idx];
-      if (m) {
-        m.text = 'Here is a concept render based on your brief. (AI render — indicative, not a final visualisation.)';
-        m.attachments = [{ kind: 'image', dataUrl: dataUrl, name: 'planex-render.jpg' }];
-      }
-      store().addRender({ dataUrl: dataUrl, prompt: prompt });
-      if (window.PlanexAIClient.audit) window.PlanexAIClient.audit('image.render', { prompt: prompt.slice(0, 120) });
-      store().commit();
-      renderMessages();
-      window.PlanexUI.toast('Render generated and saved to Concept Renders.');
-    } catch (err) {
-      const m = store().state.chat[idx];
-      const code = err && err.status ? err.status : 'network';
-      if (m) {
-        m.text = code === 429
-          ? 'The image service is busy right now (rate limited). Please try again in a moment.'
-          : 'Sorry, I could not generate the render just now (' + code + ').';
-      }
-      store().commit();
-      renderMessages();
-    }
   }
 
   return { render };

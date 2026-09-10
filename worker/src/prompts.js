@@ -59,7 +59,13 @@ Given the latest conversation and the CURRENT BRIEF, return ONLY valid JSON with
       "rationale": "one short sentence",
       "payload": { "directions": ["Japandi"], "palette": ["#c9a27a"] }
     }
-  ]
+  ],
+  "image": {
+    "generate": false,
+    "prompt": "concrete, self-contained visual description (room, style, materials, colours, lighting)",
+    "reason": "one short sentence on why a visual helps right now",
+    "aspect": "16:9"
+  }
 }
 
 Rules:
@@ -67,9 +73,18 @@ Rules:
 - Only propose BOQ lines or rooms that the user clearly implied or asked for. Do not invent prices;
   if a rate is unknown, omit the proposal rather than guessing.
 - Never propose deletions.
-- Return {"contextPatch":{},"proposals":[]} if nothing changed.
+- Return {"contextPatch":{},"proposals":[],"image":{"generate":false}} if nothing changed.
 - Allowed brief top-level keys: project, spaces, style, budget, family, priorities, constraints,
-  preferences, painPoints, openQuestions, decisions, notes.`;
+  preferences, painPoints, openQuestions, decisions, notes.
+
+IMAGE RULES (set image.generate true only when a visual genuinely helps):
+- Generate when the user is choosing or locking a look, material, palette, or layout; when
+  comparing options; or when they explicitly ask to see something.
+- Do NOT generate on greetings, pure questions/advice, or cost-only turns.
+- Never generate more than one image.
+- image.prompt must be self-contained: room + style + key materials/colours + lighting. No prices,
+  no text, no people, no brand names.
+- image.aspect: "16:9" for living/dining/open areas, "4:3" for bedrooms/kitchens, "3:4" for baths.`;
 
 export function buildExtractionPrompt(currentContext, transcript) {
   return [
@@ -79,4 +94,20 @@ export function buildExtractionPrompt(currentContext, transcript) {
     'LATEST CONVERSATION (oldest to newest):',
     transcript
   ].join('\n\n');
+}
+
+// The assistant looks at the render it produced and validates it.
+export const CRITIQUE_INSTRUCTION = `You are Planex AI. You just produced the concept render shown to the user.
+Look at the image and reply in 2-3 short sentences:
+1) Confirm what it shows and how it matches the user's brief.
+2) Name exactly ONE specific refinement you would make and why.
+Be warm, concrete and specific about materials, colour or layout. Do not repeat your earlier reply.
+Do not mention that you are an AI or that this is a prompt.`;
+
+export function buildCritiquePrompt(imagePrompt, reason) {
+  return [
+    'Render brief: ' + (imagePrompt || ''),
+    reason ? 'Intended purpose: ' + reason : '',
+    'Respond as instructed above.'
+  ].filter(Boolean).join('\n');
 }

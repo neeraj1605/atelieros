@@ -72,3 +72,20 @@ export async function addAudit(env, sessionId, kind, detail) {
     'INSERT INTO audit_log (session_id, kind, detail, created_at) VALUES (?, ?, ?, ?)'
   ).bind(sessionId, kind, JSON.stringify(detail || {}), Date.now()).run();
 }
+
+// Timestamp of the most recent generated image (0 if none).
+export async function lastImageAt(env, sessionId) {
+  const row = await env.DB.prepare(
+    "SELECT created_at FROM audit_log WHERE session_id = ? AND kind = 'image.generate' ORDER BY created_at DESC LIMIT 1"
+  ).bind(sessionId).first();
+  return row ? row.created_at : 0;
+}
+
+// Timestamp of the user message from the previous turn (0 if none).
+export async function previousUserMessageAt(env, sessionId) {
+  const { results } = await env.DB.prepare(
+    "SELECT created_at FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 2"
+  ).bind(sessionId).all();
+  const rows = results || [];
+  return rows.length >= 2 ? rows[1].created_at : 0;
+}

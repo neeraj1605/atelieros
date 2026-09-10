@@ -6,10 +6,11 @@ import { verifyTurnstile } from './turnstile.js';
 import { checkAndIncrementDaily, checkSessionRate, addTokens } from './quota.js';
 import * as db from './db.js';
 import { mergePatch } from './merge.js';
-import { sanitizeContextPatch, sanitizeProposals, emptyContext } from './schema.js';
-import { buildSystemInstruction, buildExtractionPrompt } from './prompts.js';
-import { toGeminiContents, streamReply, extractStructured } from './gemini.js';
+import { sanitizeContextPatch, sanitizeProposals, sanitizeImageSpec, aspectToSize, emptyContext } from './schema.js';
+import { buildSystemInstruction, buildExtractionPrompt, CRITIQUE_INSTRUCTION, buildCritiquePrompt } from './prompts.js';
+import { toGeminiContents, streamReply, extractStructured, streamCritique } from './gemini.js';
 import { generateImage } from './image.js';
+import { hasVisualIntent, synthesizeImageSpec, contextIsSufficient } from './intent.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -58,6 +59,36 @@ function normalizeAttachments(input, env) {
     meta.push({ kind: a.kind === 'plan' ? 'plan' : 'image', mime: String(a.mime).slice(0, 80), name: String(a.name || '').slice(0, 120), bytes });
   }
   return { ok: true, attachments: out, meta };
+}
+
+function bufToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+// Merge the server brief with the client's grounding so rendering works even
+// before the server-side brief has filled in.
+function buildRenderContext(context, grounding) {
+  const brief = (grounding && grounding.brief) || {};
+  const rooms = (grounding && grounding.rooms) || [];
+  const c = context || {};
+  const hasSpaces = c.spaces && c.spaces.length;
+  const briefSpaces = brief.spaces && brief.spaces.length;
+  const spaces = hasSpaces ? c.spaces : (briefSpaces ? brief.spaces : rooms.map((r) => ({ name: r.name })));
+  const style = (c.style && c.style.directions && c.style.directions.length) ? c.style : (brief.style || c.style);
+  const project = (c.project && (c.project.spaceType || c.project.type)) ? c.project : (brief.project || c.project);
+  return {
+    project: project,
+    spaces: spaces,
+    style: style,
+    preferences: c.preferences || brief.preferences,
+    painPoints: (c.painPoints && c.painPoints.length) ? c.painPoints : (brief.painPoints || [])
+  };
 }
 
 async function requireSession(env, req) {
@@ -184,7 +215,7 @@ async function handleChat(request, env, origin) {
   await db.touchSession(env, auth.projectId);
 
   const latest = await db.latestContext(env, auth.projectId);
-  const context = latest.context || emptyContext();
+  let context = latest.context || emptyContext();
   const history = await db.recentMessages(env, auth.projectId, 20);
 
   if (!env.GEMINI_API_KEY) {
@@ -236,12 +267,59 @@ async function handleChat(request, env, origin) {
           const merged = mergePatch(context, patch);
           newVersion = await db.saveContext(env, auth.projectId, merged, 'ai');
           send('context.patch', { patch, version: newVersion, context: merged });
+          context = merged;
         }
         if (proposals.length) send('proposals', { proposals });
 
+        // ---- Seamless visualisation: automatic at design moments, forced on request ----
+        const forced = hasVisualIntent(message);
+        const renderCtx = buildRenderContext(context, grounding);
+        let spec = sanitizeImageSpec(parsed.image);
+        if (!spec && forced && contextIsSufficient(renderCtx)) {
+          spec = synthesizeImageSpec(renderCtx, message);
+        }
+
+        let images = 0;
+        if (spec && contextIsSufficient(renderCtx)) {
+          let backToBack = false;
+          if (!forced) {
+            const lastImg = await db.lastImageAt(env, auth.projectId);
+            const prevUser = await db.previousUserMessageAt(env, auth.projectId);
+            backToBack = lastImg > 0 && prevUser > 0 && lastImg > prevUser;
+          }
+          if (forced || !backToBack) {
+            send('image.pending', { reason: spec.reason || 'so you can see it' });
+            try {
+              const size = aspectToSize(spec.aspect);
+              const img = await generateImage(env, spec.prompt, { width: size.width, height: size.height });
+              const b64 = bufToBase64(img.bytes);
+              const dataUrl = `data:${img.mime};base64,${b64}`;
+              send('image.ready', { dataUrl: dataUrl, prompt: img.prompt, reason: spec.reason || '', aspect: spec.aspect, seed: img.seed });
+              images = 1;
+              await db.addAudit(env, auth.projectId, 'image.generate', {
+                provider: img.provider, aspect: spec.aspect, forced: !!forced, prompt: spec.prompt.slice(0, 160)
+              });
+
+              // The assistant looks at the render it just made and validates it.
+              try {
+                let critique = '';
+                await streamCritique(
+                  env, CRITIQUE_INSTRUCTION, buildCritiquePrompt(img.prompt, spec.reason), b64, img.mime,
+                  (d) => { critique += d; send('critique.delta', { text: d }); }
+                );
+                if (critique) await db.addMessage(env, auth.projectId, 'assistant', critique, []);
+              } catch (e) {
+                console.error('critique_failed', String(e && e.message ? e.message : e));
+              }
+            } catch (e) {
+              send('image.failed', { message: 'image_unavailable' });
+            }
+          }
+        }
+
         await db.addMessage(env, auth.projectId, 'assistant', full, []);
         await addTokens(env, tokens + (extraction.tokens || 0));
-        send('done', { version: newVersion, tokens });
+        send('done', { version: newVersion, tokens, images });
       } catch (e) {
         send('error', { message: 'internal_error' });
       } finally {

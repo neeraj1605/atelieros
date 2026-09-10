@@ -315,7 +315,7 @@
 .msg.user .bubble { background: var(--accent); color: var(--accent-contrast); border-top-right-radius: var(--r-xs); }
 .msg-time { font-size: 10.5px; color: var(--text-muted); }
 .msg-attachments { display: flex; flex-wrap: wrap; gap: 8px; }
-.msg-attachments img { width: 132px; height: 100px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--border); cursor: pointer; }
+.msg-attachments img { width: auto; max-width: 340px; max-height: 260px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--border); cursor: pointer; }
 .msg-file { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); font-size: 12px; }
 .msg-file svg { width: 15px; height: 15px; }
 
