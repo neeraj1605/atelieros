@@ -196,11 +196,14 @@ window.PlanexModules.Scope = (function () {
     const doc = store().state.scopeDoc;
 
     container.querySelectorAll('[data-project-type]').forEach(function (el) {
-      el.addEventListener('click', function () {
+      el.addEventListener('click', async function () {
         const next = el.getAttribute('data-project-type');
         const cur = (store().state.project && store().state.project.projectType) || 'ready';
         if (next === cur) return;
-        if (store().state.scopeDoc && !confirm('Switching project type rebuilds the scope. Continue?')) return;
+        if (store().state.scopeDoc) {
+          const ok = await window.PlanexUI.confirm('Switching project type rebuilds the scope. Continue?', { title: 'Change project type' });
+          if (!ok) return;
+        }
         store().setProjectType(next);
         store().regenerateScope();
         window.PlanexUI.toast('Scope rebuilt.');
@@ -216,10 +219,16 @@ window.PlanexModules.Scope = (function () {
     });
 
     const regen = container.querySelector('#scope-regen');
-    if (regen) regen.addEventListener('click', function () {
+    if (regen) regen.addEventListener('click', async function () {
       const fpv = store().state.floorplan && store().state.floorplan.validated;
-      if (!fpv && !confirm('The floor plan is not validated. Build from current (unverified) areas anyway?')) return;
-      if (store().state.scopeDoc && !confirm('Rebuild the scope? Your include/exclude edits will be replaced.')) return;
+      if (!fpv) {
+        const ok = await window.PlanexUI.confirm('The floor plan is not validated. Build from the current (unverified) areas anyway?', { title: 'Plan not validated' });
+        if (!ok) return;
+      }
+      if (store().state.scopeDoc) {
+        const ok2 = await window.PlanexUI.confirm('Rebuild the scope? Your include/exclude edits will be replaced.', { title: 'Rebuild scope', danger: true });
+        if (!ok2) return;
+      }
       const r = store().regenerateScope();
       if (r) window.PlanexUI.toast('Scope built: ' + r.packages.length + ' work packages.');
       window.PlanexApp.renderView();

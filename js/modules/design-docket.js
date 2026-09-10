@@ -27,7 +27,7 @@ window.PlanexModules.DesignDocket = (function () {
       ? s.rows.map(function (row, ri) {
           const cells = s.columns.map(function (col, ci) {
             const val = row[ci] == null ? '' : row[ci];
-            return `<td><input class="dcell" value="${esc(val)}" data-dcell="${d.id}:${s.key}:${ri}:${ci}" title="${esc(col)}"></td>`;
+            return `<td data-label="${esc(col)}"><input class="dcell" value="${esc(val)}" data-dcell="${d.id}:${s.key}:${ri}:${ci}" title="${esc(col)}"></td>`;
           }).join('');
           return `<tr>${cells}</tr>`;
         }).join('')
@@ -284,7 +284,10 @@ window.PlanexModules.DesignDocket = (function () {
     const d = current();
     if (!d) return;
     if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) { window.PlanexUI.toast('AI enrichment needs the hosted assistant.'); return; }
-    if (d.ai && !confirm('Re-enrich this docket? This replaces AI-filled values.')) return;
+    if (d.ai) {
+      const ok = await window.PlanexUI.confirm('Re-enrich this docket? This replaces AI-filled values.', { title: 'Re-enrich docket' });
+      if (!ok) return;
+    }
 
     const btn = document.querySelector('#dk-enrich');
     const prev = btn ? btn.textContent : '';

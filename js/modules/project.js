@@ -41,6 +41,37 @@ window.PlanexModules.Project = (function () {
     return { checks: checks, warnings: warnings, totalSqft: totalSqft };
   }
 
+  function areaSchedule() {
+    const S = store().state;
+    const rooms = S.rooms || [];
+    const sqft = function (r) { return Math.round((Number(r.length) || 0) * (Number(r.width) || 0) * 10.7639); };
+    const total = rooms.reduce(function (s, r) { return s + sqft(r); }, 0);
+    const rows = rooms.map(function (r, i) {
+      return `<tr>
+        <td>${esc(r.name)}</td>
+        <td class="num"><input class="scope-qty" type="number" step="0.1" min="0" value="${r.length || ''}" data-ar-len="${i}"></td>
+        <td class="num"><input class="scope-qty" type="number" step="0.1" min="0" value="${r.width || ''}" data-ar-wid="${i}"></td>
+        <td class="num">${sqft(r)}</td>
+        <td class="num"><button class="btn btn-ghost btn-sm" data-ar-del="${i}">Remove</button></td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="section-label anim anim-2">Area Schedule</div>
+      <div class="card anim anim-2">
+        <div class="card-head">
+          <div><div class="card-title">Rooms &amp; dimensions</div><div class="card-sub">From the plan — edit if needed</div></div>
+          <button class="btn btn-ghost btn-sm" id="ar-add">${ic('plus')} Add room</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="scope-table">
+            <thead><tr><th>Room</th><th class="num">Length (m)</th><th class="num">Width (m)</th><th class="num">Area (sqft)</th><th></th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" class="muted">No rooms yet — read the plan.</td></tr>'}</tbody>
+            <tfoot><tr><td colspan="3" class="num">Total</td><td class="num bold">${total} sqft</td><td></td></tr></tfoot>
+          </table>
+        </div>
+      </div>`;
+  }
+
   function roomGallery(room) {
     const imgs = (store().state.roomImages[room.id] || []);
     return `
@@ -131,6 +162,8 @@ window.PlanexModules.Project = (function () {
             </div>` : ''}
         </div>
 
+        ${areaSchedule()}
+
         <div class="section-label anim anim-2">Room Photos</div>
         <div class="card anim anim-2">
           <div class="card-sub" style="margin-bottom:10px;">Add photos of each room. Planex AI looks at them when you discuss that room.</div>
@@ -194,6 +227,31 @@ window.PlanexModules.Project = (function () {
 
     const aiVal = container.querySelector('#fp-aivalidate');
     if (aiVal) aiVal.addEventListener('click', aiValidate);
+
+    // area schedule
+    container.querySelectorAll('[data-ar-len]').forEach(function (inp) {
+      inp.addEventListener('change', function () { updateRoomDim(Number(inp.getAttribute('data-ar-len')), 'length', inp.value); });
+    });
+    container.querySelectorAll('[data-ar-wid]').forEach(function (inp) {
+      inp.addEventListener('change', function () { updateRoomDim(Number(inp.getAttribute('data-ar-wid')), 'width', inp.value); });
+    });
+    container.querySelectorAll('[data-ar-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const i = Number(b.getAttribute('data-ar-del'));
+        const room = store().state.rooms[i];
+        if (!room) return;
+        window.PlanexUI.confirm('Remove ' + room.name + ' from the area schedule?').then(function (ok) {
+          if (!ok) return;
+          store().state.rooms.splice(i, 1);
+          store().unvalidateFloorplan();
+          store().commit();
+          if (store().state.scopeDoc) store().regenerateScope();
+          window.PlanexApp.renderView();
+        });
+      });
+    });
+    const arAdd = container.querySelector('#ar-add');
+    if (arAdd) arAdd.addEventListener('click', addRoomDialog);
 
     // room images
     container.querySelectorAll('[data-add-img]').forEach(function (b) {
@@ -367,6 +425,45 @@ window.PlanexModules.Project = (function () {
       window.PlanexUI.toast('AI validation failed (' + (e && e.status ? e.status : 'network') + ').');
     }
     if (btn) { btn.disabled = false; btn.textContent = prev; }
+  }
+
+  function updateRoomDim(i, key, value) {
+    const room = store().state.rooms[i];
+    if (!room) return;
+    room[key] = Math.max(0, Number(value) || 0);
+    room.area = (Number(room.length) * Number(room.width)).toFixed(1) + ' m²';
+    store().unvalidateFloorplan();
+    store().commit();
+    if (store().state.scopeDoc) store().regenerateScope();
+    window.PlanexApp.renderView();
+  }
+
+  function addRoomDialog() {
+    window.PlanexUI.modal('Add room', `
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="field"><label>Room name</label><input class="input" id="ar-name" placeholder="e.g. Guest Bedroom"></div>
+        <div class="field-row">
+          <div class="field"><label>Length (m)</label><input class="input" id="ar-len2" type="number" step="0.1" value="3.6"></div>
+          <div class="field"><label>Width (m)</label><input class="input" id="ar-wid2" type="number" step="0.1" value="3.0"></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="ar-save2">Add room</button>
+      </div>`);
+    document.querySelector('#ar-save2').addEventListener('click', function () {
+      const name = (document.querySelector('#ar-name').value || '').trim();
+      if (!name) { window.PlanexUI.toast('Enter a room name.'); return; }
+      const len = Number(document.querySelector('#ar-len2').value) || 0;
+      const wid = Number(document.querySelector('#ar-wid2').value) || 0;
+      store().state.rooms.push({
+        id: 'room-' + Date.now(), name: name, length: len, width: wid,
+        area: (len * wid).toFixed(1) + ' m²', color: '#9db8c9', type: 'private', source: 'user'
+      });
+      store().unvalidateFloorplan();
+      store().commit();
+      if (store().state.scopeDoc) store().regenerateScope();
+      window.PlanexUI.closeModal();
+      window.PlanexApp.renderView();
+      window.PlanexUI.toast('Room added.');
+    });
   }
 
   return { render: render };

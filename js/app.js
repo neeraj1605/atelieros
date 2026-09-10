@@ -5,6 +5,10 @@
 (function () {
   'use strict';
 
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  }
+
   /* ---------------- Icons ---------------- */
   const ICONS = {
     sparkles: '<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/>',
@@ -78,6 +82,25 @@
 
     closeModal: function () {
       if (modalEl) { modalEl.remove(); modalEl = null; }
+    },
+
+    // Inline confirmation dialog (replaces window.confirm). Resolves true/false.
+    confirm: function (message, opts) {
+      return new Promise(function (resolve) {
+        window.PlanexUI.modal((opts && opts.title) || 'Please confirm', `
+          <p style="margin-bottom:18px;">${String(message).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-secondary" id="pf-no">Cancel</button>
+            <button class="btn ${opts && opts.danger ? 'btn-danger' : 'btn-primary'}" id="pf-yes">${escAttr((opts && opts.confirmLabel) || 'Confirm')}</button>
+          </div>
+        `);
+        document.querySelector('#pf-yes').addEventListener('click', function () {
+          window.PlanexUI.closeModal(); resolve(true);
+        });
+        document.querySelector('#pf-no').addEventListener('click', function () {
+          window.PlanexUI.closeModal(); resolve(false);
+        });
+      });
     },
 
     lightbox: function (src) {
@@ -256,8 +279,9 @@
 
     // reset
     const reset = document.getElementById('reset-demo');
-    if (reset) reset.addEventListener('click', function () {
-      if (confirm('Reset the demo project back to its starting state?')) {
+    if (reset) reset.addEventListener('click', async function () {
+      const ok = await window.PlanexUI.confirm('Reset the demo project back to its starting state?', { title: 'Reset project', danger: true });
+      if (ok) {
         store.reset();
         applyTheme(store.state.theme);
         const c = document.getElementById('currency-select');

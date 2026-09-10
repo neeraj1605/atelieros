@@ -64,11 +64,11 @@ window.PlanexModules.Costing = (function () {
 
     const lines = boq.map(function (b, i) {
       return `<tr>
-        <td><div class="boq-cat">${esc(b.category)}</div><div style="font-weight:600;">${esc(b.item)}</div></td>
-        <td class="num"><input class="scope-qty" type="number" min="0" value="${b.qty}" data-cost-qty="${i}"></td>
-        <td class="num muted">${esc(b.unit)}</td>
-        <td class="num"><input class="scope-qty" type="number" min="0" value="${b.rate}" data-cost-rate="${i}"></td>
-        <td class="num bold">${money((Number(b.qty) || 0) * (Number(b.rate) || 0))}</td>
+        <td data-label="Item"><div class="boq-cat">${esc(b.category)}</div><div style="font-weight:600;">${esc(b.item)}</div></td>
+        <td class="num" data-label="Qty"><input class="scope-qty" type="number" min="0" value="${b.qty}" data-cost-qty="${i}"></td>
+        <td class="num muted" data-label="Unit">${esc(b.unit)}</td>
+        <td class="num" data-label="Rate"><input class="scope-qty" type="number" min="0" value="${b.rate}" data-cost-rate="${i}"></td>
+        <td class="num bold" data-label="Amount">${money((Number(b.qty) || 0) * (Number(b.rate) || 0))}</td>
       </tr>`;
     }).join('');
 
@@ -146,8 +146,9 @@ window.PlanexModules.Costing = (function () {
     const rfq = container.querySelector('#cost-rfq');
     if (rfq) rfq.addEventListener('click', function () { window.PlanexApp.navigate('quotation'); });
     const refresh = container.querySelector('#cost-refresh');
-    if (refresh) refresh.addEventListener('click', function () {
-      if (!confirm('Re-price the scope? This replaces the current BOQ.')) return;
+    if (refresh) refresh.addEventListener('click', async function () {
+      const ok = await window.PlanexUI.confirm('Re-price the scope? This replaces the current BOQ.', { title: 'Re-price scope', danger: true });
+      if (!ok) return;
       const n = store().addScopeToBOQ();
       window.PlanexUI.toast(n + ' items re-priced.');
       window.PlanexApp.renderView();

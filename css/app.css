@@ -833,7 +833,31 @@
 .chat-wrap-compact { flex: 1; min-height: 0; height: auto; border-radius: var(--r-lg); }
 .bottom-nav-inner { overflow-x: auto; }
 .bn-item { flex: 0 0 auto; min-width: 62px; }
-@media (max-width: 820px) { .copilot-fab { bottom: calc(var(--bottomnav-h) + 16px); } }
+@media (max-width: 820px) {
+  .copilot-fab { bottom: calc(var(--bottomnav-h) + 16px); }
+
+  /* Stacked table cards on mobile */
+  .boq-table thead, .docket-table thead { display: none; }
+  .boq-table, .boq-table tbody, .boq-table tr, .boq-table td,
+  .docket-table, .docket-table tbody, .docket-table tr, .docket-table td { display: block; width: 100%; }
+  .boq-table tr, .docket-table tr {
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    margin-bottom: 8px; padding: 8px 10px; background: var(--surface);
+  }
+  .boq-table td, .docket-table td {
+    border: none; padding: 4px 0; display: flex; justify-content: space-between;
+    align-items: center; gap: 12px; text-align: right;
+  }
+  .boq-table td::before, .docket-table td::before {
+    content: attr(data-label); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-muted); text-align: left; flex-shrink: 0;
+  }
+  .boq-table tfoot td { text-align: right; }
+  .docket-doc { padding: 16px; }
+  .docket-doc-head { flex-direction: column; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .detail-grid { grid-template-columns: 1fr; }
+}
 
 /* ---------- Print ---------- */@media print {
   .sidebar,
