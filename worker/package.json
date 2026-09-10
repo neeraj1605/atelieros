@@ -10,7 +10,7 @@
     "db:create": "wrangler d1 create planex-ai",
     "db:migrate:local": "wrangler d1 execute planex-ai --local --file=./migrations/0001_init.sql",
     "db:migrate:remote": "wrangler d1 execute planex-ai --remote --file=./migrations/0001_init.sql",
-    "test": "node --test test/merge.test.js test/schema.test.js test/session.test.js test/intent.test.js test/scope.test.js test/plan.test.js test/docket.test.js",
+    "test": "node --test test/merge.test.js test/schema.test.js test/session.test.js test/intent.test.js test/scope.test.js test/plan.test.js test/docket.test.js test/sheets.test.js",
     "check": "node --check src/index.js && node --check src/gemini.js && node --check src/session.js && node --check src/schema.js && node --check src/merge.js"
   },
   "devDependencies": {

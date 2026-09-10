@@ -58,7 +58,9 @@ window.PlanexStore = (function () {
       floorplan: null,
       roomImages: {},
       docketSet: null,
-      scopeConfirmed: false
+      scopeConfirmed: false,
+      plan: null,
+      sheetNotes: {}
     };
     initial.project.projectType = 'ready';
     initial.contextVersions.push({
@@ -85,6 +87,8 @@ window.PlanexStore = (function () {
           if (!state.roomImages || typeof state.roomImages !== 'object') state.roomImages = {};
           if (state.docketSet === undefined) state.docketSet = null;
           if (typeof state.scopeConfirmed !== 'boolean') state.scopeConfirmed = false;
+          if (state.plan === undefined) state.plan = null;
+          if (!state.sheetNotes || typeof state.sheetNotes !== 'object') state.sheetNotes = {};
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (!state.context || !state.context.project) state.context = buildInitial().context;
@@ -527,6 +531,22 @@ window.PlanexStore = (function () {
     return true;
   }
 
+  /* ---------- Plan footprint & drawing sheets ---------- */
+  function setPlan(plan) { state.plan = plan || null; commit(); }
+
+  function regeneratePlan() {
+    if (!window.PlanexPlanGenerator) return null;
+    state.plan = window.PlanexPlanGenerator.generatePlan(state.rooms);
+    commit();
+    return state.plan;
+  }
+
+  function setSheetNotes(kind, notes) {
+    if (!kind) return;
+    state.sheetNotes[kind] = notes || null;
+    commit();
+  }
+
   /* ---------- Status & journey ---------- */
   function confirmScope() {
     if (!state.scopeDoc) return false;
@@ -685,6 +705,7 @@ window.PlanexStore = (function () {
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
+    setPlan, regeneratePlan, setSheetNotes,
     confirmScope, statusOf, nextAction,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,

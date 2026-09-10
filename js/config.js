@@ -7,7 +7,7 @@ window.PLANEX_CONFIG = {
   // REAL Gemini (chat) + Pollinations (image generation). Stays up only while
   // the Worker and tunnel run on the host machine. For a permanent endpoint,
   // deploy the Worker (see worker/README.md) and replace this URL.
-  workerUrl: 'https://optimal-emotional-before-experience.trycloudflare.com',
+  workerUrl: 'https://fifty-jpg-trusted-musicians.trycloudflare.com',
 
   // Cloudflare Turnstile site key. Test key (always passes); replace for production.
   turnstileSiteKey: '1x00000000000000000000AA',

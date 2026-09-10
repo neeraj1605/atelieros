@@ -14,6 +14,7 @@ import { hasVisualIntent, synthesizeImageSpec, contextIsSufficient } from './int
 import { buildScopePrompt, normalizeScope } from './scope.js';
 import { buildRoomsPrompt, normalizeRooms } from './plan.js';
 import { buildDocketPrompt, sanitizeDocketEnrichment } from './docket.js';
+import { buildSheetsPrompt, sanitizeSheetNotes } from './sheets.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -159,6 +160,10 @@ export default {
 
       if (url.pathname === '/docket/enrich' && request.method === 'POST') {
         return await handleDocketEnrich(request, env, origin);
+      }
+
+      if (url.pathname === '/plan/sheets' && request.method === 'POST') {
+        return await handlePlanSheets(request, env, origin);
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -534,4 +539,42 @@ async function handleDocketEnrich(request, env, origin) {
   await db.addAudit(env, auth.projectId, 'docket.enrich', { docket: docket.id });
   await addTokens(env, result.tokens || 0);
   return json({ enrichment }, 200, env, origin);
+}
+
+async function handlePlanSheets(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  if (!Array.isArray(body.rooms) || !body.rooms.length) return json({ error: 'no_rooms' }, 400, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const prompt = buildSheetsPrompt(body);
+  const models = [env.GEMINI_DOCKET_MODEL, env.GEMINI_FLASH_MODEL, env.GEMINI_LITE_MODEL].filter(Boolean);
+
+  let result = null;
+  let lastErr = null;
+  for (const m of models) {
+    try { result = await extractStructured(env, prompt, null, m); break; }
+    catch (e) { lastErr = e; }
+  }
+  if (!result) {
+    const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+    console.error('sheets_failed', msg);
+    return json({ error: 'sheets_failed', detail: msg.slice(0, 160) }, 502, env, origin);
+  }
+
+  const sheets = sanitizeSheetNotes(result.parsed);
+  if (!sheets) {
+    console.error('sheets_empty', String(result.raw || '').slice(0, 400));
+    return json({ error: 'sheets_empty' }, 422, env, origin);
+  }
+  await db.addAudit(env, auth.projectId, 'sheets.notes', { sheets: Object.keys(sheets).length });
+  await addTokens(env, result.tokens || 0);
+  return json({ sheets }, 200, env, origin);
 }

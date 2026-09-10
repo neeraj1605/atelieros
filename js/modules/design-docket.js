@@ -10,6 +10,75 @@ window.PlanexModules.DesignDocket = (function () {
   let selectedId = 'furniture';
   let currentUnits = [];
   let currentLayoutRooms = [];
+  let selectedSheet = 'main';
+  let sheetZoom = 1;
+
+  const SHEET_LIST = [
+    { k: 'main', no: 'A-01', name: 'Main Layout' },
+    { k: 'furniture', no: 'A-02', name: 'Furniture' },
+    { k: 'ceiling', no: 'A-03', name: 'Ceiling' },
+    { k: 'lighting', no: 'A-04', name: 'Lighting' }
+  ];
+
+  function drawingsSection() {
+    const S = store().state;
+    const plan = S.plan;
+    const notes = S.sheetNotes[selectedSheet];
+    return `
+      <div class="section-label anim anim-1">Design Docket — Drawings</div>
+      <div class="card anim anim-1">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Drawing set</div>
+            <div class="card-sub">${plan
+              ? plan.rooms.length + ' rooms · ' + Math.round(plan.widthM * 1000) + ' × ' + Math.round(plan.heightM * 1000) + ' mm envelope · indicative setting-out'
+              : 'Generate the plan footprint to create the sheets'}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" id="dw-gen">${ic('plan')} ${plan ? 'Regenerate plan' : 'Generate plan'}</button>
+            ${plan ? `<button class="btn btn-secondary btn-sm" id="dw-notes">${ic('sparkles')} ${notes ? 'Re-run design notes' : 'Design notes (AI)'}</button>` : ''}
+            ${plan ? `<button class="btn btn-secondary btn-sm" id="dw-print">${ic('print')} Print set</button>` : ''}
+          </div>
+        </div>
+        ${plan ? `
+          <div class="sheet-rail">
+            ${SHEET_LIST.map(function (s) {
+              return `<button class="docket-chip ${s.k === selectedSheet ? 'active' : ''}" data-sheet="${s.k}"><span>${s.no}</span><span>${esc(s.name)}</span></button>`;
+            }).join('')}
+          </div>
+          <div class="sheet-toolbar">
+            <span class="faint text-xs">Zoom</span>
+            <button class="btn btn-ghost btn-sm" data-zoom="out">−</button>
+            <span class="faint text-xs" id="zoom-val">${Math.round(sheetZoom * 100)}%</span>
+            <button class="btn btn-ghost btn-sm" data-zoom="in">+</button>
+            <button class="btn btn-ghost btn-sm" data-zoom="fit">Fit</button>
+            <span class="faint text-xs" style="margin-left:auto;">${esc((window.PlanexDrawingEngine && window.PlanexDrawingEngine.SHEETS[selectedSheet].title) || '')}</span>
+          </div>
+          <div class="sheet-scroll">
+            <div class="sheet-canvas" id="sheet-canvas-wrap"><canvas id="sheet-canvas"></canvas></div>
+          </div>
+          ${notes
+            ? `<div class="sheet-notes"><div class="docket-section-title">Design Intent</div>
+                 <ul class="docket-notes">${(notes.notes || []).map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('')}</ul></div>`
+            : `<p class="muted text-sm sheet-notes-hint">Add design notes (AI) for setting-out, furniture, ceiling and lighting rationale.</p>`}
+        ` : `<p class="muted text-sm">The drawing set needs a plan footprint — generate it from your validated rooms.</p>`}
+      </div>`;
+  }
+
+  function drawSheets(container) {
+    const cv = container.querySelector('#sheet-canvas');
+    if (!cv || !window.PlanexDrawingEngine) return;
+    const S = store().state;
+    if (!S.plan) return;
+    window.PlanexDrawingEngine.drawSheet(cv, selectedSheet, S.plan, {
+      project: S.project.name,
+      date: new Date().toLocaleDateString(),
+      revision: 'P0',
+      provisional: !(S.floorplan && S.floorplan.validated)
+    });
+    cv.style.transformOrigin = 'top left';
+    cv.style.transform = sheetZoom === 1 ? 'none' : 'scale(' + sheetZoom + ')';
+  }
 
   function layoutKind(d) {
     if (d.id === 'lighting') return 'lighting';
@@ -185,6 +254,8 @@ window.PlanexModules.DesignDocket = (function () {
           </div>
         </div>
 
+        ${drawingsSection()}
+
         ${!set ? `
           <div class="empty anim anim-1">
             <div class="empty-icon">${ic('docket')}</div>
@@ -297,6 +368,61 @@ window.PlanexModules.DesignDocket = (function () {
     });
 
     drawDetails(container);
+    drawSheets(container);
+
+    // Drawing set controls
+    const dwGen = container.querySelector('#dw-gen');
+    if (dwGen) dwGen.addEventListener('click', function () {
+      store().regeneratePlan();
+      window.PlanexUI.toast('Plan footprint generated.');
+      window.PlanexApp.renderView();
+    });
+    container.querySelectorAll('[data-sheet]').forEach(function (b) {
+      b.addEventListener('click', function () { selectedSheet = b.getAttribute('data-sheet'); window.PlanexApp.renderView(); });
+    });
+    container.querySelectorAll('[data-zoom]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const dir = b.getAttribute('data-zoom');
+        if (dir === 'in') sheetZoom = Math.min(2.5, sheetZoom + 0.2);
+        else if (dir === 'out') sheetZoom = Math.max(0.6, sheetZoom - 0.2);
+        else sheetZoom = 1;
+        window.PlanexApp.renderView();
+      });
+    });
+    const dwNotes = container.querySelector('#dw-notes');
+    if (dwNotes) dwNotes.addEventListener('click', sheetNotes);
+    const dwPrint = container.querySelector('#dw-print');
+    if (dwPrint) dwPrint.addEventListener('click', function () { window.print(); });
+  }
+
+  async function sheetNotes() {
+    const S = store().state;
+    if (!S.plan) return;
+    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) { window.PlanexUI.toast('Design notes need the hosted assistant.'); return; }
+    const btn = document.querySelector('#dw-notes');
+    const prev = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Writing notes…'; }
+    try {
+      const res = await window.PlanexAIClient.planSheets({
+        rooms: S.plan.rooms.map(function (r) { return { name: r.name, kind: r.kind, length: r.length, width: r.width, areaM2: r.areaM2 }; }),
+        envelope: { widthM: S.plan.widthM, heightM: S.plan.heightM },
+        projectType: (S.project && S.project.projectType) || 'ready',
+        quality: S.scopeQuality || 'standard',
+        brief: S.context
+      });
+      if (res && res.sheets) {
+        ['main', 'furniture', 'ceiling', 'lighting'].forEach(function (k) {
+          if (res.sheets[k]) store().setSheetNotes(k, res.sheets[k]);
+        });
+        window.PlanexUI.toast('Design intent notes added.');
+        window.PlanexApp.renderView();
+        return;
+      }
+      window.PlanexUI.toast('No notes returned.');
+    } catch (e) {
+      window.PlanexUI.toast('Design notes failed (' + (e && e.status ? e.status : 'network') + ').');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
   }
 
   function generateDockets() {

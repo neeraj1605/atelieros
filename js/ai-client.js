@@ -288,6 +288,27 @@ window.PlanexAIClient = (function () {
     return res.json();
   }
 
+  async function planSheets(payload) {
+    const session = await ensureSession(false);
+    const res = await fetch(base() + '/plan/sheets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + session.token
+      },
+      body: JSON.stringify(payload || {})
+    });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch (e) { /* ignore */ }
+      const err = new Error(detail.error || ('sheets_' + res.status));
+      err.status = res.status;
+      err.detail = detail;
+      throw err;
+    }
+    return res.json();
+  }
+
   async function generateImage(prompt, opts) {
     const session = await ensureSession(false);
     const res = await fetch(base() + '/image', {
@@ -319,6 +340,7 @@ window.PlanexAIClient = (function () {
     buildScope: buildScope,
     readPlan: readPlan,
     enrichDocket: enrichDocket,
+    planSheets: planSheets,
     getContext: getContext,
     audit: audit,
     clearSession: clearSession,
