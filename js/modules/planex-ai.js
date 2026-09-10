@@ -67,6 +67,7 @@ window.PlanexModules.PlanexAI = (function () {
               <textarea class="composer-input" id="composer-input" rows="1"
                 placeholder="Describe your space, ask about costs, or attach a site plan..."></textarea>
               <div class="composer-tools">
+                <button class="icon-btn" id="tool-render" title="Generate a render">${ic('wand')}</button>
                 <button class="icon-btn" id="tool-image" title="Attach image">${ic('image')}</button>
                 <button class="icon-btn" id="tool-plan" title="Attach site plan">${ic('plan')}</button>
                 <button class="send-btn" id="send-btn" title="Send">${ic('send')}</button>
@@ -102,6 +103,10 @@ window.PlanexModules.PlanexAI = (function () {
     container.querySelector('#tool-image').addEventListener('click', clickImage);
     container.querySelector('#ai-add-plan').addEventListener('click', clickPlan);
     container.querySelector('#tool-plan').addEventListener('click', clickPlan);
+    container.querySelector('#tool-render').addEventListener('click', () => {
+      const t = (input.value || '').trim();
+      generateRender(t || lastUserText());
+    });
 
     fileImage.addEventListener('change', (e) => handleFiles(e.target.files, 'image'));
     filePlan.addEventListener('change', (e) => handleFiles(e.target.files, 'plan'));
@@ -279,6 +284,7 @@ window.PlanexModules.PlanexAI = (function () {
 
     streaming = false;
     renderMessages();
+    if (wantsRender(text)) generateRender(text);
   }
 
   function renderMessages() {
@@ -492,6 +498,66 @@ window.PlanexModules.PlanexAI = (function () {
         }
       });
     });
+  }
+
+  function wantsRender(text) {
+    return /\b(render|renders|3d|visuali[sz]e|mood ?board|photorealistic|image of|picture of|sketch|preview)\b/i.test(text || '');
+  }
+
+  function lastUserText() {
+    const chat = store().state.chat || [];
+    for (let i = chat.length - 1; i >= 0; i--) {
+      if (chat[i].role === 'user' && chat[i].text) return chat[i].text;
+    }
+    const c = store().state.context || {};
+    return [
+      c.project && c.project.spaceType,
+      (c.style && c.style.directions || []).join(' + ')
+    ].filter(Boolean).join(', ') || 'a modern Indian living room';
+  }
+
+  function buildRenderPromptFrom(text) {
+    const c = store().state.context || {};
+    const bits = [];
+    if (text) bits.push(text);
+    if (c.project && c.project.spaceType) bits.push(c.project.spaceType);
+    if (c.style && c.style.directions && c.style.directions.length) bits.push(c.style.directions.join(' + ') + ' style');
+    return bits.join(', ').slice(0, 600);
+  }
+
+  async function generateRender(promptText) {
+    if (!hosted()) {
+      window.PlanexUI.toast('Image generation needs the hosted assistant. Set workerUrl in config.');
+      return;
+    }
+    const prompt = buildRenderPromptFrom(promptText);
+    const idx = store().state.chat.length;
+    store().addChatMessage('assistant', '🎨 Creating your render — this takes a few seconds...', []);
+    renderMessages();
+
+    try {
+      const dataUrl = await window.PlanexAIClient.generateImage(prompt, { width: 1024, height: 768 });
+      const m = store().state.chat[idx];
+      if (m) {
+        m.text = 'Here is a concept render based on your brief. (AI render — indicative, not a final visualisation.)';
+        m.attachments = [{ kind: 'image', dataUrl: dataUrl, name: 'planex-render.jpg' }];
+      }
+      store().addRender({ dataUrl: dataUrl, prompt: prompt });
+      if (window.PlanexAIClient.audit) window.PlanexAIClient.audit('image.render', { prompt: prompt.slice(0, 120) });
+      store().commit();
+      renderMessages();
+      window.PlanexUI.toast('Render generated and saved to Concept Renders.');
+    } catch (err) {
+      const m = store().state.chat[idx];
+      const code = err && err.status ? err.status : 'network';
+      if (m) {
+        m.text = code === 429
+          ? 'The image service is busy right now (rate limited). Please try again in a moment.'
+          : 'Sorry, I could not generate the render just now (' + code + ').';
+      }
+      store().commit();
+      renderMessages();
+    }
   }
 
   return { render };

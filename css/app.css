@@ -593,6 +593,15 @@
 }
 .msg-body .bubble .typing { padding: 0; background: transparent; }
 
+.renders-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.render-thumb {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: var(--r-md); border: 1px solid var(--border);
+  cursor: pointer; transition: transform .16s ease;
+}
+.render-thumb:hover { transform: scale(1.02); }
+@media (max-width: 640px) { .renders-grid { grid-template-columns: repeat(2, 1fr); } }
+
 /* ---------- Print ---------- */@media print {
   .sidebar,
   .sidebar-overlay,

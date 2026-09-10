@@ -51,7 +51,8 @@ window.PlanexStore = (function () {
         notes: 'Prefers low-maintenance finishes. Wants more storage.'
       },
       contextVersions: [],
-      audit: []
+      audit: [],
+      renders: []
     };
     initial.contextVersions.push({
       version: 1,
@@ -71,6 +72,7 @@ window.PlanexStore = (function () {
           state = parsed;
           if (!Array.isArray(state.contextVersions)) state.contextVersions = [];
           if (!Array.isArray(state.audit)) state.audit = [];
+          if (!Array.isArray(state.renders)) state.renders = [];
           if (!state.context || !state.context.project) state.context = buildInitial().context;
           if (!state.contextVersion) state.contextVersion = 1;
           return;
@@ -90,6 +92,7 @@ window.PlanexStore = (function () {
       try {
         const stripped = JSON.parse(JSON.stringify(state));
         stripped.uploads = [];
+        stripped.renders = [];
         stripped.chat = stripped.chat.map(function (m) {
           return Object.assign({}, m, { attachments: [] });
         });
@@ -278,6 +281,20 @@ window.PlanexStore = (function () {
     if (state.audit.length > 100) state.audit.length = 100;
   }
 
+  function addRender(render) {
+    if (!render || !render.dataUrl) return null;
+    const entry = {
+      id: 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      dataUrl: render.dataUrl,
+      prompt: render.prompt || '',
+      at: new Date().toISOString()
+    };
+    state.renders.unshift(entry);
+    if (state.renders.length > 24) state.renders.length = 24;
+    commit();
+    return entry;
+  }
+
   /* Apply a proposal the user explicitly confirmed. */
   function applyProposal(proposal) {
     if (!proposal || !proposal.type) return false;
@@ -363,7 +380,7 @@ window.PlanexStore = (function () {
     boqSubtotal, boqLinesWithAmount, quoteFor, allQuotes, selectedQuote, getFinancials,
     setView, setTheme, setActiveRoom, updateBOQItem, selectVendor,
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
-    adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit,
+    adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     reset
   };
 })();

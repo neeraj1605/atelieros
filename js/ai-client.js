@@ -209,10 +209,43 @@ window.PlanexAIClient = (function () {
     } catch (e) { /* non-fatal */ }
   }
 
+  function blobToDataUrl(blob) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(new Error('read_failed')); };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function generateImage(prompt, opts) {
+    const session = await ensureSession(false);
+    const res = await fetch(base() + '/image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + session.token
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        width: opts && opts.width,
+        height: opts && opts.height
+      })
+    });
+    if (!res.ok) {
+      const err = new Error('image_' + res.status);
+      err.status = res.status;
+      throw err;
+    }
+    const blob = await res.blob();
+    return blobToDataUrl(blob);
+  }
+
   return {
     isEnabled: isEnabled,
     ensureSession: ensureSession,
     send: send,
+    generateImage: generateImage,
     getContext: getContext,
     audit: audit,
     clearSession: clearSession,

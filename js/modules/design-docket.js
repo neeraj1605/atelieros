@@ -186,6 +186,18 @@ window.PlanexModules.DesignDocket = (function () {
         <td class="num bold">${money(b.qty * b.rate)}</td>
       </tr>`).join('');
 
+    const rendersSection = (S.renders && S.renders.length) ? `
+        <div class="section-label anim anim-3">Concept Renders</div>
+        <div class="card anim anim-3">
+          <div class="card-head">
+            <div><div class="card-title">Generated Concepts</div><div class="card-sub">AI renders from your Planex AI conversations</div></div>
+            <div class="badge badge-neutral">${S.renders.length}</div>
+          </div>
+          <div class="renders-grid">
+            ${S.renders.map(r => `<img class="render-thumb" src="${r.dataUrl}" alt="Concept render" data-lightbox="${r.dataUrl}" title="${esc(r.prompt || '')}">`).join('')}
+          </div>
+        </div>` : '';
+
     container.innerHTML = `
       <div class="view-inner">
         <div class="module-header anim">
@@ -231,6 +243,7 @@ window.PlanexModules.DesignDocket = (function () {
           </div>
         </div>
 
+        ${rendersSection}
         <div class="section-label anim anim-3">Bill of Quantities</div>
         <div class="card anim anim-3" style="padding:0;overflow:hidden;">
           <div style="overflow-x:auto;">
@@ -280,6 +293,9 @@ window.PlanexModules.DesignDocket = (function () {
 
     container.querySelector('#docket-print').addEventListener('click', () => window.print());
     container.querySelector('#docket-add').addEventListener('click', addItemDialog);
+    container.querySelectorAll('[data-lightbox]').forEach(el => {
+      el.addEventListener('click', () => window.PlanexUI.lightbox(el.getAttribute('data-lightbox')));
+    });
 
     // redraw on resize
     if (!window.__planexResizeBound) {

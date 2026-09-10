@@ -9,6 +9,7 @@ import { mergePatch } from './merge.js';
 import { sanitizeContextPatch, sanitizeProposals, emptyContext } from './schema.js';
 import { buildSystemInstruction, buildExtractionPrompt } from './prompts.js';
 import { toGeminiContents, streamReply, extractStructured } from './gemini.js';
+import { generateImage } from './image.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -94,6 +95,10 @@ export default {
 
       if (url.pathname === '/session/start' && request.method === 'POST') {
         return await handleSessionStart(request, env, origin);
+      }
+
+      if (url.pathname === '/image' && request.method === 'POST') {
+        return await handleImage(request, env, origin);
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -247,4 +252,36 @@ async function handleChat(request, env, origin) {
   });
 
   return new Response(stream, { status: 200, headers: sseHeaders(env, origin) });
+}
+
+async function handleImage(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  const prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 800).trim() : '';
+  if (!prompt) return json({ error: 'empty_prompt' }, 400, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  try {
+    const img = await generateImage(env, prompt, { width: body.width, height: body.height });
+    await db.addAudit(env, auth.projectId, 'image.generate', { provider: img.provider, prompt: prompt.slice(0, 200) });
+    return new Response(img.bytes, {
+      status: 200,
+      headers: {
+        'Content-Type': img.mime,
+        'Cache-Control': 'no-store',
+        'X-Image-Provider': img.provider,
+        ...corsHeaders(env, origin)
+      }
+    });
+  } catch (err) {
+    const message = String(err && err.message ? err.message : err);
+    return json({ error: 'image_failed', detail: message.slice(0, 160) }, 502, env, origin);
+  }
 }

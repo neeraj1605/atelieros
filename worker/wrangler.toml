@@ -16,6 +16,8 @@ ALLOWED_ORIGIN = "https://neeraj1605.github.io"
 ALLOWED_ORIGINS_EXTRA = "http://localhost:8080,http://127.0.0.1:8080"
 GEMINI_FLASH_MODEL = "gemini-3.6-flash"
 GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
+# Image generation provider: "pollinations" (free, no key). Swappable later.
+IMAGE_PROVIDER = "pollinations"
 DAILY_TURN_CAP = "2000"
 SESSION_HOURLY_LIMIT = "30"
 MAX_ATTACHMENT_BYTES = "4500000"

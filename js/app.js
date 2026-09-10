@@ -25,6 +25,7 @@
     ruler: '<path d="M3 17l14-14 4 4-14 14z"/><path d="M7 11l2 2M10 8l2 2M13 5l2 2"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
     alert: '<path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+    wand: '<path d="M15 4V2M15 10V8M11 6H9M21 6h-2M18.5 3.5l-1.4 1.4M18.5 8.5l-1.4-1.4M11.5 3.5l1.4 1.4"/><path d="M3 21l9.5-9.5"/>',
     arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     collapse: '<path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/>'
   };
