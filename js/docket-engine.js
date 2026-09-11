@@ -386,6 +386,19 @@ window.PlanexDocketEngine = (function () {
       });
       const populated = sectionsOut.some(function (s) { return s.rows.length; });
 
+      // Furniture: expose per-unit records for the extreme-detail unit pages.
+      const units = [];
+      if (def.id === 'furniture') {
+        const us = sectionsOut.filter(function (x) { return x.key === 'units'; })[0];
+        (us ? us.rows : []).forEach(function (row) {
+          units.push({
+            mark: row[0], name: row[1], space: row[2], size: row[3],
+            carcass: row[4], shutter: row[5], finish: row[6], hardware: row[7],
+            shutters: 2, drawers: 1
+          });
+        });
+      }
+
       return {
         id: def.id,
         name: def.name,
@@ -402,6 +415,7 @@ window.PlanexDocketEngine = (function () {
         spec: { standards: def.notes || [] },
         notes: def.notes || [],
         populated: populated,
+        units: units,
         ai: null
       };
     });

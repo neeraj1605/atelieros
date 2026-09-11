@@ -171,25 +171,64 @@ window.PlanexModules.DesignDocket = (function () {
       return {
         mark: markIdx >= 0 ? r[markIdx] : '',
         name: nameIdx >= 0 ? r[nameIdx] : 'Unit',
-        size: sizeIdx >= 0 ? r[sizeIdx] : ''
+        size: sizeIdx >= 0 ? r[sizeIdx] : '',
+        shutters: 2,
+        drawers: 1
       };
     }).filter(function (u) { return u.name && u.name !== 'Unit'; });
 
+    const quality = store().state.scopeQuality || 'standard';
     if (!currentUnits.length) return '';
     return `
       <div class="docket-section">
-        <div class="docket-section-title">Shop Drawings — Elevation &amp; Section</div>
-        <p class="muted text-sm" style="margin-bottom:10px;">Indicative coordination drawings generated from the schedule (dimensions in mm). Verify on site before fabrication.</p>
-        <div class="detail-grid">
-          ${currentUnits.map(function (u, i) {
-            return `
-              <div class="detail-card">
-                <div class="detail-head">${esc(u.mark ? u.mark + ' · ' : '')}${esc(u.name)}</div>
-                <div class="detail-canvas"><canvas data-elev="${i}"></canvas></div>
-                <div class="detail-canvas"><canvas data-sect="${i}"></canvas></div>
-              </div>`;
-          }).join('')}
-        </div>
+        <div class="docket-section-title">Unit Details — Elevation · Internal · Section</div>
+        <p class="muted text-sm" style="margin-bottom:10px;">Front elevation, internal elevation and side section per unit (mm), with hardware and finish schedules. Verify on site before fabrication.</p>
+        ${currentUnits.map(function (u, i) {
+          const spec = window.PlanexFurnitureSpec;
+          const kk = spec ? spec.kindOf(u.name) : 'generic';
+          const hw = spec ? spec.hardwareFor(kk, u.shutters, u.drawers) : [];
+          const fin = spec ? spec.finishFor(kk, quality) : [];
+          return `
+            <div class="unit-page">
+              <div class="unit-page-head">
+                <div>
+                  <span class="unit-mark">${esc(u.mark || ('FU' + (i + 1)))}</span>
+                  <strong>${esc(u.name)}</strong>
+                  ${u.space ? `<span class="faint">· ${esc(u.space)}</span>` : ''}
+                </div>
+                <span class="faint text-xs">${esc(u.size || '')}</span>
+              </div>
+              <div class="detail-grid">
+                <div class="detail-card"><div class="detail-canvas"><canvas data-elev="${i}"></canvas></div></div>
+                <div class="detail-card"><div class="detail-canvas"><canvas data-int="${i}"></canvas></div></div>
+                <div class="detail-card"><div class="detail-canvas"><canvas data-sect="${i}"></canvas></div></div>
+              </div>
+              <div class="docket-layout" style="margin-top:10px;">
+                <div class="card">
+                  <div class="docket-section-title">Data sheet</div>
+                  <table class="scope-table"><tbody>
+                    <tr><td>Carcass</td><td>${esc(u.carcass || '18mm BWP ply')}</td></tr>
+                    <tr><td>Shutter</td><td>${esc(u.shutter || '')}</td></tr>
+                    <tr><td>Finish</td><td>${esc(u.finish || '')}</td></tr>
+                    <tr><td>Edge band</td><td>2mm PVC matching</td></tr>
+                    <tr><td>Back panel</td><td>6mm ply + laminate</td></tr>
+                  </tbody></table>
+                </div>
+                <div class="card">
+                  <div class="docket-section-title">Hardware schedule</div>
+                  <table class="scope-table"><thead><tr><th>Item</th><th>Make</th><th class="num">Qty</th></tr></thead><tbody>
+                    ${hw.map(function (h) { return `<tr><td>${esc(h.item)}</td><td>${esc(h.spec)}</td><td class="num">${h.qty} ${esc(h.unit)}</td></tr>`; }).join('')}
+                  </tbody></table>
+                </div>
+              </div>
+              <div class="card" style="margin-top:10px;">
+                <div class="docket-section-title">Finish schedule</div>
+                <table class="scope-table"><thead><tr><th>Surface</th><th>Material</th><th>Shade</th><th>Sheen</th></tr></thead><tbody>
+                  ${fin.map(function (f) { return `<tr><td>${esc(f.surface)}</td><td>${esc(f.material)}</td><td>${esc(f.shade)}</td><td>${esc(f.sheen)}</td></tr>`; }).join('')}
+                </tbody></table>
+              </div>
+            </div>`;
+        }).join('')}
       </div>`;
   }
 
@@ -202,6 +241,10 @@ window.PlanexModules.DesignDocket = (function () {
     container.querySelectorAll('[data-sect]').forEach(function (cv) {
       const u = currentUnits[Number(cv.getAttribute('data-sect'))];
       if (u) window.PlanexDetailEngine.drawSection(cv, u);
+    });
+    container.querySelectorAll('[data-int]').forEach(function (cv) {
+      const u = currentUnits[Number(cv.getAttribute('data-int'))];
+      if (u) window.PlanexDetailEngine.drawInternals(cv, u);
     });
     container.querySelectorAll('[data-lay]').forEach(function (cv) {
       const p = cv.getAttribute('data-lay').split(':');
@@ -227,6 +270,7 @@ window.PlanexModules.DesignDocket = (function () {
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${d.id === 'furniture' ? `<button class="btn btn-secondary btn-sm" id="dk-print-furniture">${ic('print')} Furniture pack</button>` : ''}
             <button class="btn btn-secondary btn-sm" id="dk-print">${ic('print')} Print / PDF</button>
             <button class="btn btn-primary btn-sm" id="dk-enrich">${ic('sparkles')} ${d.ai ? 'Re-enrich' : 'Enrich with AI'}</button>
           </div>
@@ -364,6 +408,8 @@ window.PlanexModules.DesignDocket = (function () {
 
     const print = container.querySelector('#dk-print');
     if (print) print.addEventListener('click', function () { window.print(); });
+    const printFurn = container.querySelector('#dk-print-furniture');
+    if (printFurn) printFurn.addEventListener('click', function () { window.print(); });
 
     const enrich = container.querySelector('#dk-enrich');
     if (enrich) enrich.addEventListener('click', enrichCurrent);

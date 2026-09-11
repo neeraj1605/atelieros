@@ -60,6 +60,14 @@ window.PlanexDetailEngine = (function () {
 
   function vline(s, x, y1, y2) { s.ctx.beginPath(); s.ctx.moveTo(x, y1); s.ctx.lineTo(x, y2); s.ctx.stroke(); }
   function hline(s, x1, x2, y) { s.ctx.beginPath(); s.ctx.moveTo(x1, y); s.ctx.lineTo(x2, y); s.ctx.stroke(); }
+  function line(s, x1, y1, x2, y2, color, w) {
+    s.ctx.strokeStyle = color || s.line; s.ctx.lineWidth = w == null ? 1 : w;
+    s.ctx.beginPath(); s.ctx.moveTo(x1, y1); s.ctx.lineTo(x2, y2); s.ctx.stroke();
+  }
+  function rect(s, x, y, w, h, fill, stroke, lw) {
+    if (fill) { s.ctx.fillStyle = fill; s.ctx.fillRect(x, y, w, h); }
+    if (stroke) { s.ctx.strokeStyle = stroke; s.ctx.lineWidth = lw == null ? 1 : lw; s.ctx.strokeRect(x, y, w, h); }
+  }
 
   function dimH(s, x1, x2, y, label) {
     s.ctx.strokeStyle = s.faint; s.ctx.lineWidth = 1;
@@ -181,8 +189,56 @@ window.PlanexDetailEngine = (function () {
     label(s, x, y + h + 34, 'W × H', s.faint, 'left', '500 9px Inter, sans-serif');
   }
 
-  function drawSection(canvas, unit) {
-    const type = unitType(unit.name);
+  // ---------- Internal elevation ----------
+  function drawInternals(canvas, unit) {
+    const kind = unitType(unit.name);
+    const spec = window.PlanexFurnitureSpec;
+    const kk = spec ? spec.kindOf(unit.name) : kind;
+    const size = parseSize(unit.size, kind);
+    const s = setup(canvas, canvas.parentElement.clientWidth || 320, 300);
+
+    const padL = 36, padR = 30, padT = 34, padB = 34;
+    const availW = s.W - padL - padR, availH = s.H - padT - padB;
+    const scale = Math.min(availW / size.w, availH / size.h);
+    const w = size.w * scale, h = size.h * scale;
+    const x = padL + (availW - w) / 2, y = padT + (availH - h) / 2;
+
+    label(s, 10, 16, (unit.mark ? unit.mark + ' · ' : '') + unit.name + ' — INTERNAL', s.text, 'left', '700 11px Inter, sans-serif');
+    label(s, s.W - 10, 16, 'scale ' + (scale * 1000).toFixed(0) + ' : 1000', s.faint, 'right', '500 10px Inter, sans-serif');
+
+    frame(s, x, y, w, h, '#fbfbfc', s.line, 1.6);
+
+    const items = spec ? spec.internalsFor(kk) : [];
+    const n = Math.max(1, items.length);
+    const bandH = h / n;
+
+    items.forEach(function (it, i) {
+      const by = y + bandH * i;
+      const midY = by + bandH / 2;
+      const isDrawer = /drawer/i.test(it.part);
+      const isRod = /rod/i.test(it.part);
+      const isMirror = /mirror/i.test(it.part);
+      if (isRod) {
+        line(s, x + 8, midY, x + w - 8, midY, s.line, 1.4);
+        s.ctx.strokeStyle = s.line; s.ctx.lineWidth = 1.2;
+        s.ctx.beginPath(); s.ctx.arc(x + 16, midY, 4, 0, Math.PI * 2); s.ctx.stroke();
+      } else if (isDrawer) {
+        rect(s, x + 6, midY - bandH * 0.3, w - 12, bandH * 0.6, '#ffffff', s.line, 1.1);
+      } else if (isMirror) {
+        rect(s, x + w - 14, by + 4, 8, bandH - 8, null, '#4a90d9', 1.2);
+      } else {
+        line(s, x + 6, midY, x + w - 6, midY, s.soft, 1);
+      }
+      label(s, x + 8, midY - 4, it.part + (it.qty > 1 ? ' ×' + it.qty : ''), s.line, 'left', '600 8px Inter, sans-serif');
+      label(s, x + w - 8, midY + 9, it.size, s.faint, 'right', '500 7.5px Inter, sans-serif');
+    });
+
+    dimH(s, x, x + w, y + h + 18, size.w + ' mm');
+    dimV(s, x - 16, y, y + h, size.h + ' mm');
+    label(s, x, y + h + 32, 'Internal layout · carcass ' + (unit.carcass || '18mm BWP ply'), s.faint, 'left', '500 9px Inter, sans-serif');
+  }
+
+  function drawSection(canvas, unit) {    const type = unitType(unit.name);
     const size = parseSize(unit.size, type);
     const s = setup(canvas, canvas.parentElement.clientWidth || 320, 300);
 
@@ -215,5 +271,5 @@ window.PlanexDetailEngine = (function () {
     leader(s, x + w / 2, y + (h / n), x + w * 0.6, y + (h / n) + 16, 'Shelf 18mm');
   }
 
-  return { unitType: unitType, parseSize: parseSize, drawUnit: drawUnit, drawSection: drawSection };
+  return { unitType: unitType, parseSize: parseSize, drawUnit: drawUnit, drawSection: drawSection, drawInternals: drawInternals };
 })();

@@ -951,6 +951,18 @@
 /* ---------- Copilot dock (left/right) ---------- */
 .copilot-rail.dock-left { order: -1; border-left: 0; border-right: 1px solid var(--border); }
 
+/* ---------- Furniture unit pages ---------- */
+.unit-page {
+  border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px;
+  margin-bottom: 16px; background: var(--surface); break-inside: avoid;
+}
+.unit-page-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.unit-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--accent-contrast);
+  border-radius: var(--r-sm); padding: 2px 8px; font-weight: 700; font-size: 11px; margin-right: 6px;
+}
+
 /* ---------- Print ---------- */@media print {
   .sidebar,
   .sidebar-overlay,
