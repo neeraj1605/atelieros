@@ -58,9 +58,12 @@ window.PlanexCopilot = (function () {
     rail.querySelector('#copilot-collapse').addEventListener('click', collapse);
     const dockBtn = rail.querySelector('#copilot-dock');
     if (dockBtn) dockBtn.addEventListener('click', function () {
+      const order = ['right', 'left', 'float'];
       const cur = (window.PlanexStore.state.ui && window.PlanexStore.state.ui.dock) || 'right';
-      window.PlanexStore.setUI({ dock: cur === 'left' ? 'right' : 'left' });
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      window.PlanexStore.setUI({ dock: next });
       applyDock();
+      window.PlanexUI.toast('Panel: ' + next);
     });
     applyDock();
 
@@ -99,6 +102,7 @@ window.PlanexCopilot = (function () {
     if (!rail) return;
     const dock = (window.PlanexStore.state.ui && window.PlanexStore.state.ui.dock) || 'right';
     rail.classList.toggle('dock-left', dock === 'left');
+    rail.classList.toggle('dock-float', dock === 'float');
   }
 
   function target() {

@@ -187,6 +187,19 @@ window.PlanexDetailEngine = (function () {
     dimH(s, x, x + w, y + h + 18, size.w + ' mm');
     dimV(s, x - 16, y, y + h, size.h + ' mm');
     label(s, x, y + h + 34, 'W × H', s.faint, 'left', '500 9px Inter, sans-serif');
+
+    // Detail callout 1 — plinth / skirting
+    if (s.W > 380) {
+      s.ctx.strokeStyle = s.line; s.ctx.lineWidth = 1;
+      s.ctx.beginPath(); s.ctx.arc(x + w - 10, y + h - 6, 9, 0, Math.PI * 2); s.ctx.stroke();
+      label(s, x + w - 10, y + h - 3, '1', s.line, 'center', '700 9px Inter, sans-serif');
+      const bx = s.W - 152, by = s.H - 46;
+      frame(s, bx, by, 142, 36, '#ffffff', s.soft, 0.8);
+      label(s, bx + 8, by + 12, 'DETAIL 1 · Plinth', s.line, 'left', '700 8px Inter, sans-serif');
+      rect(s, bx + 8, by + 20, 26, 11, '#e5e7eb', s.line, 0.8);
+      line(s, bx + 8, by + 20, bx + 64, by + 20, s.line, 1);
+      label(s, bx + 40, by + 30, '100mm PVC / SS skirting', s.faint, 'left', '500 8px Inter, sans-serif');
+    }
   }
 
   // ---------- Internal elevation ----------

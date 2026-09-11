@@ -948,8 +948,14 @@
 
 @media (max-width: 820px) { .hiw-steps, .hiw-plans { grid-template-columns: 1fr; } }
 
-/* ---------- Copilot dock (left/right) ---------- */
+/* ---------- Copilot dock (left/right/float) ---------- */
 .copilot-rail.dock-left { order: -1; border-left: 0; border-right: 1px solid var(--border); }
+.copilot-rail.dock-float {
+  position: fixed; right: 20px; bottom: 20px; top: auto;
+  height: 72vh; width: 390px; z-index: 210;
+  border: 1px solid var(--border); border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+}
 
 /* ---------- Furniture unit pages ---------- */
 .unit-page {

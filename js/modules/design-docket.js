@@ -75,7 +75,8 @@ window.PlanexModules.DesignDocket = (function () {
       project: S.project.name,
       date: new Date().toLocaleDateString(),
       revision: 'P0',
-      provisional: !(S.floorplan && S.floorplan.validated)
+      provisional: !(S.floorplan && S.floorplan.validated),
+      units: (selectedSheet === 'furniture' ? currentUnits : null)
     });
     cv.style.transformOrigin = 'top left';
     cv.style.transform = sheetZoom === 1 ? 'none' : 'scale(' + sheetZoom + ')';

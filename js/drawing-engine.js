@@ -225,6 +225,27 @@ window.PlanexDrawingEngine = (function () {
         }
       }
     });
+
+    // Joinery marks — one chip per unit, keyed to the Unit Details pages.
+    if (opts && opts.units && opts.units.length) {
+      plan.rooms.forEach(function (r) {
+        const mine = opts.units.filter(function (u) {
+          return u.space && String(u.space).toLowerCase() === String(r.name).toLowerCase();
+        });
+        if (!mine.length) return;
+        const X = f.ox + r.x * f.scale, Y = f.oy + r.y * f.scale;
+        mine.slice(0, 8).forEach(function (u, i) {
+          const bx = X + 4 + (i % 2) * 40, by = Y + 14 + Math.floor(i / 2) * 14;
+          if (by > f.oy + (r.y + r.h) * f.scale - 8) return;
+          s.c.fillStyle = '#18181b';
+          s.c.fillRect(bx, by, 36, 11);
+          s.c.fillStyle = '#fff';
+          s.c.font = '700 7px Inter, sans-serif';
+          s.c.textAlign = 'center';
+          s.c.fillText(String(u.mark || '').slice(0, 10), bx + 18, by + 8);
+        });
+      });
+    }
     return clear;
   }
 
