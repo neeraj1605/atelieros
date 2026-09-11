@@ -23,7 +23,7 @@ window.PlanexCopilot = (function () {
     fab.className = 'copilot-fab';
     fab.title = 'Planex AI';
     fab.setAttribute('aria-label', 'Open Planex AI');
-    fab.innerHTML = ic('sparkles') + '<span>Planex AI</span>';
+    fab.innerHTML = ic('sparkles') + '<span>Planex Copilot</span>';
     fab.addEventListener('click', open);
     document.body.appendChild(fab);
 
@@ -38,7 +38,7 @@ window.PlanexCopilot = (function () {
     drawer.className = 'copilot-drawer';
     drawer.innerHTML = `
       <div class="copilot-head">
-        <div class="copilot-title">${ic('sparkles')}<span>Planex AI</span><span class="copilot-tag">Interior Expert</span></div>
+        <div class="copilot-title">${ic('sparkles')}<span>Planex Copilot</span><span class="copilot-tag">Interior Expert</span></div>
         <button class="icon-btn" id="copilot-close" title="Close">${ic('collapse')}</button>
       </div>
       <div class="copilot-body" id="copilot-drawer-body"></div>`;

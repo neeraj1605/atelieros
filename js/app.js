@@ -172,8 +172,21 @@
       M.HowItWorks.render(el);
     } else if (S.ui && S.ui.view === 'workspace') {
       const act = S.ui.act || 'design';
+      const bar = document.createElement('div');
+      bar.className = 'workspace-bar';
+      bar.innerHTML =
+        '<div class="wb-left">' + window.PlanexIcons.get('docket') + '<strong>Workspace</strong></div>' +
+        '<button class="btn btn-primary btn-sm wb-back" id="wb-back">← Back to Planex Copilot</button>';
+      el.appendChild(bar);
+      const body = document.createElement('div');
+      el.appendChild(body);
       const mod = act === 'procurement' ? M.Procurement : act === 'execution' ? M.Execution : M.Design;
-      if (mod && mod.render) mod.render(el);
+      if (mod && mod.render) mod.render(body);
+      const back = bar.querySelector('#wb-back');
+      if (back) back.addEventListener('click', function () {
+        window.PlanexStore.setUI({ view: 'copilot' });
+        renderView();
+      });
     } else {
       M.PlanexAI.render(el);
     }
@@ -220,9 +233,23 @@
       const plan = (S.project && S.project.plan) || 'ai';
       pb.textContent = plan === 'remote' ? 'Plan B · AI + Remote' : plan === 'onground' ? 'Plan C · On-ground' : 'Plan A · AI-assisted';
     }
-    // workspace toggle label
-    const wt = document.getElementById('workspace-toggle');
-    if (wt) wt.textContent = (S.ui && S.ui.view === 'workspace') ? 'Back to Copilot' : 'Workspace';
+    // surface switch (Planex Copilot / Workspace)
+    const swEl = document.getElementById('surface-switch');
+    if (swEl) {
+      const view = (S.ui && S.ui.view) || 'copilot';
+      swEl.querySelectorAll('[data-surface]').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-surface') === view);
+        if (!b.__bound) {
+          b.__bound = true;
+          b.addEventListener('click', function () {
+            const target = b.getAttribute('data-surface');
+            window.PlanexStore.setUI({ view: target });
+            renderView();
+            window.PlanexUI.toast(target === 'workspace' ? 'Workspace' : 'Planex Copilot');
+          });
+        }
+      });
+    }
     // journey progress line
     const jf = document.getElementById('journey-line-fill');
     if (jf && window.PlanexJourneyRail) {
@@ -393,6 +420,14 @@
     const lb = document.getElementById('lightbox');
     if (lbClose) lbClose.addEventListener('click', function () { lb.classList.remove('open'); });
     if (lb) lb.addEventListener('click', function (e) { if (e.target === lb) lb.classList.remove('open'); });
+
+    // keyboard: 1 = Planex Copilot, 2 = Workspace
+    document.addEventListener('keydown', function (e) {
+      if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (document.querySelector('.modal-backdrop')) return;
+      if (e.key === '1') { store.setUI({ view: 'copilot' }); renderView(); }
+      if (e.key === '2') { store.setUI({ view: 'workspace' }); renderView(); }
+    });
 
     // keyboard: escape closes modal/lightbox
     document.addEventListener('keydown', function (e) {
