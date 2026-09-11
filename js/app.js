@@ -233,6 +233,10 @@
     const ar = document.getElementById('artifact-rail');
     if (ar && window.PlanexArtifactRail) window.PlanexArtifactRail.render(ar);
 
+    // AI-centric: collapse the left rail on demand
+    const shell = document.querySelector('.app-shell');
+    if (shell) shell.classList.toggle('no-rail', !!(S.ui && S.ui.leftRailCollapsed));
+
     // bottom nav (acts)
     const bn = document.getElementById('bottom-nav');
     if (bn) {
@@ -348,6 +352,14 @@
     if (wt) wt.addEventListener('click', function () {
       const cur = (store.state.ui && store.state.ui.view) || 'copilot';
       store.setUI({ view: cur === 'workspace' ? 'copilot' : 'workspace' });
+      renderView();
+    });
+
+    // collapse the left rail to give the AI more room
+    const railToggle = document.getElementById('rail-toggle');
+    if (railToggle) railToggle.addEventListener('click', function () {
+      const cur = !!(store.state.ui && store.state.ui.leftRailCollapsed);
+      store.setUI({ leftRailCollapsed: !cur });
       renderView();
     });
 

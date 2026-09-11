@@ -100,6 +100,83 @@ window.PlanexModules.Spaces = (function () {
     return m ? m[1] : 'Space';
   }
 
+  function planCard() {
+    const S = store().state;
+    const fp = S.floorplan;
+    return `
+      <div class="card anim anim-1">
+        <div class="card-head">
+          <div>
+            <div class="card-title">${fp ? esc(fp.name) : 'Start with your floor plan'}</div>
+            <div class="card-sub">${fp ? 'Read the rooms from it — or add spaces manually below' : 'Upload a floor plan and I will create the spaces for you'}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" id="sp-upload">${ic('upload')} ${fp ? 'Replace plan' : 'Upload floor plan'}</button>
+            ${fp ? `<button class="btn btn-primary btn-sm" id="sp-create">${ic('sparkles')} Create spaces from plan (AI)</button>` : ''}
+          </div>
+        </div>
+        ${fp
+          ? `<div class="plan-preview"><img src="${fp.dataUrl}" alt="Floor plan" data-lightbox="${fp.dataUrl}"></div>`
+          : `<p class="muted text-sm">No floor plan yet — upload one above, or add spaces individually with <strong>Add space</strong>.</p>`}
+        <input type="file" id="sp-file-plan" accept="image/*" hidden>
+      </div>`;
+  }
+
+  async function createSpacesFromPlan() {
+    const S = store().state;
+    const fp = S.floorplan;
+    if (!fp) return;
+    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) {
+      window.PlanexUI.toast('Creating spaces from a plan needs the hosted assistant.');
+      return;
+    }
+    const btn = document.querySelector('#sp-create');
+    if (btn) { btn.disabled = true; btn.textContent = 'Reading plan…'; }
+    try {
+      const res = await window.PlanexAIClient.readPlan({ kind: 'plan', name: fp.name, dataUrl: fp.dataUrl });
+      const rooms = res.rooms || [];
+      if (!rooms.length) {
+        window.PlanexUI.toast('Could not read rooms from that plan — add spaces manually.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Create spaces from plan (AI)'; }
+        return;
+      }
+      const existing = (S.rooms || []).length;
+      const apply = function (mode) {
+        if (mode === 'replace') store().state.rooms = [];
+        rooms.forEach(function (r) {
+          const nm = r.name;
+          if (mode === 'merge' && (store().state.rooms || []).some(function (x) { return x.name.toLowerCase() === nm.toLowerCase(); })) return;
+          store().addSpace({
+            name: nm,
+            kind: window.PlanexPlanGenerator ? window.PlanexPlanGenerator.kindOf(nm) : 'other',
+            length: r.lengthM, width: r.widthM,
+            source: 'ai-plan', confidence: r.confidence
+          });
+        });
+        store().regeneratePlan();
+        if (store().state.scopeDoc) store().regenerateScope();
+        store().validateFloorplan({ checks: [{ ok: true, label: 'Spaces created from plan' }], warnings: ['Verify dimensions on site.'] });
+        window.PlanexUI.toast('Created ' + rooms.length + ' spaces — adjust any dimensions.');
+        window.PlanexApp.renderView();
+      };
+      if (existing) {
+        window.PlanexUI.modal('Create spaces from plan', `
+          <p class="text-sm" style="margin-bottom:14px;">You already have ${existing} spaces. Replace them, or add only the new rooms?</p>
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+            <button class="btn btn-secondary" id="cs-merge">Add new only</button>
+            <button class="btn btn-danger" id="cs-replace">Replace all</button>
+          </div>`);
+        document.querySelector('#cs-merge').addEventListener('click', function () { window.PlanexUI.closeModal(); apply('merge'); });
+        document.querySelector('#cs-replace').addEventListener('click', function () { window.PlanexUI.closeModal(); apply('replace'); });
+      } else {
+        apply('merge');
+      }
+    } catch (e) {
+      window.PlanexUI.toast('Plan reading failed (' + (e && e.status ? e.status : 'network') + ').');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Create spaces from plan (AI)'; }
+  }
+
   function render(container) {
     const S = store().state;
     const spaces = S.rooms || [];
@@ -117,6 +194,8 @@ window.PlanexModules.Spaces = (function () {
           </div>
           <button class="btn btn-primary btn-sm" id="sp-add">${ic('plus')} Add space</button>
         </div>
+
+        ${planCard()}
 
         <div class="spaces-layout anim anim-1">
           <div class="card spaces-list">
@@ -142,6 +221,25 @@ window.PlanexModules.Spaces = (function () {
 
     const add = container.querySelector('#sp-add');
     if (add) add.addEventListener('click', addSpaceDialog);
+
+    // Floor plan upload + AI create
+    const planFile = container.querySelector('#sp-file-plan');
+    const upload = container.querySelector('#sp-upload');
+    if (upload && planFile) upload.addEventListener('click', function () { planFile.click(); });
+    if (planFile) planFile.addEventListener('change', function (e) {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      if (f.size > 4 * 1024 * 1024) { window.PlanexUI.toast('File too large (max 4 MB).'); return; }
+      const reader = new FileReader();
+      reader.onload = function () {
+        store().setFloorplan({ name: f.name, dataUrl: reader.result, size: f.size });
+        window.PlanexUI.toast('Floor plan uploaded — now create the spaces.');
+        window.PlanexApp.renderView();
+      };
+      reader.readAsDataURL(f);
+    });
+    const create = container.querySelector('#sp-create');
+    if (create) create.addEventListener('click', createSpacesFromPlan);
 
     const s = current();
     if (!s) return;

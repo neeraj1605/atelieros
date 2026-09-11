@@ -36,7 +36,7 @@ window.PlanexModules.PlanexAI = (function () {
     const S = store().state;
 
     container.innerHTML = `
-      <div class="${compact ? 'copilot-inner' : 'view-inner'}">
+      <div class="${compact ? 'copilot-inner' : 'view-inner ai-wide'}">
         ${compact ? '' : `
         <div class="module-header anim">
           <div>
