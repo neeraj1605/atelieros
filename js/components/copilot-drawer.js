@@ -1,30 +1,38 @@
 /* ============================================================
-   Planex — Copilot Drawer
-   The assistant is ambient: a floating button + right-side drawer,
-   available on every screen. Hosts the PlanexAI chat in compact mode.
+   Planex — Copilot
+   Desktop: a persistent docked right rail (always visible).
+   Mobile: a labelled FAB + overlay drawer.
+   Hosts the PlanexAI chat in compact mode.
    ============================================================ */
 window.PlanexCopilot = (function () {
   let fab = null;
   let drawer = null;
-  let bodyEl = null;
+  let drawerBody = null;
   let backdrop = null;
-  let isOpen = false;
-  let rendered = false;
+  let rail = null;
+  let railBody = null;
+  let isOpen = false;      // mobile drawer state
+  let collapsed = false;   // desktop rail state
 
   function ic(n) { return window.PlanexIcons.get(n); }
+  function isDesktop() {
+    return !!(window.matchMedia && window.matchMedia('(min-width: 1101px)').matches);
+  }
 
   function mount() {
-    if (document.getElementById('copilot-fab')) return;
+    if (document.getElementById('copilot-rail')) return;
 
+    // Mobile FAB
     fab = document.createElement('button');
     fab.id = 'copilot-fab';
     fab.className = 'copilot-fab';
-    fab.title = 'Planex Copilot';
-    fab.setAttribute('aria-label', 'Open Planex Copilot');
+    fab.title = 'Planex AI';
+    fab.setAttribute('aria-label', 'Open Planex AI');
     fab.innerHTML = ic('sparkles') + '<span>Planex AI</span>';
-    fab.addEventListener('click', toggle);
+    fab.addEventListener('click', open);
     document.body.appendChild(fab);
 
+    // Mobile overlay drawer
     backdrop = document.createElement('div');
     backdrop.id = 'copilot-backdrop';
     backdrop.className = 'copilot-backdrop';
@@ -34,39 +42,84 @@ window.PlanexCopilot = (function () {
     drawer = document.createElement('aside');
     drawer.id = 'copilot-drawer';
     drawer.className = 'copilot-drawer';
-    drawer.innerHTML = `
-      <div class="copilot-head">
-        <div class="copilot-title">${ic('sparkles')} <span>Copilot</span></div>
-        <button class="icon-btn" id="copilot-close" title="Close">${ic('collapse')}</button>
-      </div>
-      <div class="copilot-body" id="copilot-body"></div>
-    `;
+    drawer.innerHTML = headHtml('copilot-close-d') + '<div class="copilot-body" id="copilot-drawer-body"></div>';
     document.body.appendChild(drawer);
-    bodyEl = drawer.querySelector('#copilot-body');
-    drawer.querySelector('#copilot-close').addEventListener('click', close);
+    drawerBody = drawer.querySelector('#copilot-drawer-body');
+    drawer.querySelector('#copilot-close-d').addEventListener('click', close);
+
+    // Desktop docked rail
+    rail = document.createElement('aside');
+    rail.id = 'copilot-rail';
+    rail.className = 'copilot-rail';
+    rail.innerHTML = headHtml('copilot-collapse') + '<div class="copilot-body" id="copilot-rail-body"></div>';
+    const shell = document.querySelector('.app-shell') || document.body;
+    shell.appendChild(rail);
+    railBody = rail.querySelector('#copilot-rail-body');
+    rail.querySelector('#copilot-collapse').addEventListener('click', collapse);
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && isOpen) close();
     });
-  }
 
-  function ensureRendered() {
-    if (rendered || !bodyEl) return;
-    const M = window.PlanexModules;
-    if (M && M.PlanexAI && M.PlanexAI.renderIn) {
-      M.PlanexAI.renderIn(bodyEl, { compact: true });
-      rendered = true;
+    window.addEventListener('resize', function () {
+      // Re-home the chat if the device class changed.
+      if (!isDesktop() && rail) rail.classList.remove('collapsed');
+      ensureRendered();
+    });
+
+    // Desktop: render immediately and hide the FAB.
+    if (isDesktop()) {
+      ensureRendered();
+      if (fab) fab.style.display = 'none';
     }
   }
 
+  function headHtml(closeId) {
+    return `
+      <div class="copilot-head">
+        <div class="copilot-title">${ic('sparkles')}
+          <span>Planex AI</span>
+          <span class="copilot-tag">Interior Expert</span>
+        </div>
+        <button class="icon-btn" id="${closeId}" title="Close">${ic('collapse')}</button>
+      </div>`;
+  }
+
+  function target() {
+    return isDesktop() ? railBody : drawerBody;
+  }
+
+  function ensureRendered() {
+    const t = target();
+    if (!t || t.__rendered) return;
+    const M = window.PlanexModules;
+    if (M && M.PlanexAI && M.PlanexAI.renderIn) {
+      M.PlanexAI.renderIn(t, { compact: true });
+      t.__rendered = true;
+    }
+  }
+
+  function focusInput() {
+    const t = target();
+    const inp = t && t.querySelector('#composer-input');
+    if (inp) setTimeout(function () { inp.focus(); }, 260);
+  }
+
   function open() {
+    if (isDesktop()) {
+      collapsed = false;
+      rail.classList.remove('collapsed');
+      if (fab) fab.style.display = 'none';
+      ensureRendered();
+      focusInput();
+      return;
+    }
     ensureRendered();
     isOpen = true;
     drawer.classList.add('open');
     backdrop.classList.add('open');
     if (fab) fab.style.display = 'none';
-    const inp = bodyEl && bodyEl.querySelector('#composer-input');
-    if (inp) setTimeout(function () { inp.focus(); }, 260);
+    focusInput();
   }
 
   function close() {
@@ -76,7 +129,19 @@ window.PlanexCopilot = (function () {
     if (fab) fab.style.display = '';
   }
 
-  function toggle() { if (isOpen) close(); else open(); }
+  function collapse() {
+    collapsed = true;
+    rail.classList.add('collapsed');
+    if (fab) fab.style.display = '';
+  }
 
-  return { mount: mount, open: open, close: close, toggle: toggle, isOpen: function () { return isOpen; } };
+  function toggle() { if (isDesktop()) { collapsed ? open() : collapse(); } else { isOpen ? close() : open(); } }
+
+  return {
+    mount: mount,
+    open: open,
+    close: close,
+    toggle: toggle,
+    isOpen: function () { return isOpen; }
+  };
 })();
