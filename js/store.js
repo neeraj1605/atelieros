@@ -76,6 +76,8 @@ window.PlanexStore = (function () {
       theme: { directions: ['Warm Minimal', 'Japandi'], palette: [] }
     };
     initial.project.projectType = 'ready';
+    initial.project.plan = 'ai';
+    initial.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false };
     initial.contextVersions.push({
       version: 1,
       source: 'seed',
@@ -114,6 +116,8 @@ window.PlanexStore = (function () {
           if (!state.sheetNotes || typeof state.sheetNotes !== 'object') state.sheetNotes = {};
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
+          if (state.project && !state.project.plan) state.project.plan = 'ai';
+          if (!state.ui) state.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false };
           if (!state.context || !state.context.project) state.context = buildInitial().context;
           if (!state.contextVersion) state.contextVersion = 1;
           return;
@@ -570,6 +574,20 @@ window.PlanexStore = (function () {
     commit();
   }
 
+  /* ---------- Engagement plan & UI state ---------- */
+  function setServicePlan(plan) {
+    if (['ai', 'remote', 'onground'].indexOf(plan) < 0) return;
+    if (!state.project) state.project = {};
+    state.project.plan = plan;
+    pushAudit('project.plan', { plan: plan });
+    commit();
+  }
+  function setUI(patch) {
+    state.ui = Object.assign({ dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false }, state.ui, patch || {});
+    commit();
+  }
+  function markHowItWorksSeen() { setUI({ seenHowItWorks: true }); }
+
   /* ---------- Spaces ---------- */
   function spaceById(id) {
     return state.rooms.filter(function (r) { return r.id === id; })[0] || null;
@@ -770,6 +788,7 @@ window.PlanexStore = (function () {
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
     setPlan, regeneratePlan, setSheetNotes,
     spaceById, activeSpace, setActiveSpace, addSpace, updateSpace, removeSpace, setMoodboard, setTheme,
+    setServicePlan, setUI, markHowItWorksSeen,
     confirmScope, statusOf, nextAction,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,

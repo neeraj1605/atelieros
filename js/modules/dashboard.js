@@ -11,6 +11,29 @@ window.PlanexModules.Dashboard = (function () {
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  function moodboardStrip() {
+    const S = window.PlanexStore.state;
+    const rooms = S.rooms || [];
+    if (!rooms.length) return '';
+    return `
+      <div class="section-label anim anim-2">Your spaces — the look so far</div>
+      <div class="mood-strip anim anim-2">
+        ${rooms.map(function (r) {
+          const mb = S.moodboards && S.moodboards[r.id];
+          const swatches = (mb && mb.palette && mb.palette.length)
+            ? mb.palette.slice(0, 6).map(function (c) {
+                return `<span class="mood-sw" style="background:${c.hex}" title="${esc(c.name)} ${esc(c.hex)}" data-hex="${esc(c.hex)}"></span>`;
+              }).join('')
+            : '<span class="muted text-xs">No palette yet</span>';
+          return `<button class="mood-card" data-space="${r.id}">
+            <span class="mood-card-head"><span class="mood-name">${esc(r.name)}</span><span class="faint text-xs">${r.length || 0} × ${r.width || 0} m</span></span>
+            <span class="mood-swatches">${swatches}</span>
+            <span class="faint text-xs">${mb ? 'Tap to open moodboard' : 'Set the look →'}</span>
+          </button>`;
+        }).join('')}
+      </div>`;
+  }
+
   function render(container) {
     const store = window.PlanexStore;
     const S = store.state;
@@ -18,12 +41,9 @@ window.PlanexModules.Dashboard = (function () {
     const ic = window.PlanexIcons.get;
 
     const steps = [
-      { label: 'Project', view: 'project', done: !!(S.floorplan && S.floorplan.validated) },
-      { label: 'Scope', view: 'scope', done: !!S.scopeConfirmed },
-      { label: 'Dockets', view: 'docket', done: !!S.docketSet },
-      { label: 'Costing', view: 'costing', done: !!(S.boq && S.boq.length) },
-      { label: 'Buy', view: 'quotation', done: !!S.selectedVendorId },
-      { label: 'Execute', view: 'execution', done: S.timeline.every(function (p) { return p.status === 'done'; }) }
+      { label: 'Design', view: 'design', done: !!(S.floorplan && S.floorplan.validated) && Object.keys(S.moodboards || {}).length > 0 },
+      { label: 'Procurement', view: 'procurement', done: !!(S.boq && S.boq.length) },
+      { label: 'Execution', view: 'execution', done: S.timeline.every(function (p) { return p.status === 'done'; }) }
     ];
     const doneCount = steps.filter(function (s) { return s.done; }).length;
     const pct = Math.round((doneCount / steps.length) * 100);
@@ -90,6 +110,8 @@ window.PlanexModules.Dashboard = (function () {
 
         <div class="stepper anim anim-1">${stepper}</div>
 
+        ${moodboardStrip()}
+
         <div class="section-label anim anim-2">Needs your attention</div>
         <div class="attention-list anim anim-2">
           ${cards || '<div class="card"><p class="muted text-sm">All clear — nothing needs you right now.</p></div>'}
@@ -115,6 +137,24 @@ window.PlanexModules.Dashboard = (function () {
         </div>
       </div>
     `;
+
+    bind(container);
+  }
+
+  function bind(container) {
+    container.querySelectorAll('[data-space]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        window.PlanexStore.setActiveSpace(b.getAttribute('data-space'));
+        window.PlanexApp.navigate('moodboard');
+      });
+    });
+    container.querySelectorAll('[data-hex]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const hex = b.getAttribute('data-hex');
+        try { navigator.clipboard.writeText(hex); window.PlanexUI.toast('Copied ' + hex); } catch (err) { window.PlanexUI.toast(hex); }
+      });
+    });
   }
 
   return { render };

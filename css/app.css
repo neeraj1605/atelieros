@@ -910,6 +910,47 @@
 .palette-hex { font-size: 11px; color: var(--text-secondary); padding: 2px 10px 10px; }
 @media (max-width: 820px) { .spaces-layout { grid-template-columns: 1fr; } }
 
+/* ---------- How it works ---------- */
+.hiw { max-width: 980px; }
+.hiw-hero {
+  position: relative; overflow: hidden; border-radius: var(--r-2xl);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--bg)));
+  color: var(--accent-contrast); padding: 34px;
+}
+.hiw-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.hiw-step { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+.hiw-num { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.hiw-step-title { font-weight: 700; font-size: 15px; }
+.hiw-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.hiw-plan { text-align: left; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 18px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.hiw-plan.active { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); }
+.hiw-plan-name { font-weight: 700; font-size: 15px; }
+
+/* ---------- Acts + sub-nav ---------- */
+.act-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.act-title-row { display: flex; align-items: center; gap: 10px; }
+.act-sub { color: var(--text-secondary); margin-top: 4px; }
+.act-subnav { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 18px; }
+
+/* ---------- Interactive moodboard strip (Home) ---------- */
+.mood-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.mood-card {
+  text-align: left; border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  cursor: pointer; transition: transform .16s ease, box-shadow .16s ease;
+}
+.mood-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.mood-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mood-name { font-weight: 650; font-size: 14px; }
+.mood-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.mood-sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); }
+.copilot-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+@media (max-width: 820px) { .hiw-steps, .hiw-plans { grid-template-columns: 1fr; } }
+
+/* ---------- Copilot dock (left/right) ---------- */
+.copilot-rail.dock-left { order: -1; border-left: 0; border-right: 1px solid var(--border); }
+
 /* ---------- Print ---------- */@media print {
   .sidebar,
   .sidebar-overlay,

@@ -51,11 +51,18 @@ window.PlanexCopilot = (function () {
     rail = document.createElement('aside');
     rail.id = 'copilot-rail';
     rail.className = 'copilot-rail';
-    rail.innerHTML = headHtml('copilot-collapse') + '<div class="copilot-body" id="copilot-rail-body"></div>';
+    rail.innerHTML = headHtml('copilot-collapse', true) + '<div class="copilot-body" id="copilot-rail-body"></div>';
     const shell = document.querySelector('.app-shell') || document.body;
     shell.appendChild(rail);
     railBody = rail.querySelector('#copilot-rail-body');
     rail.querySelector('#copilot-collapse').addEventListener('click', collapse);
+    const dockBtn = rail.querySelector('#copilot-dock');
+    if (dockBtn) dockBtn.addEventListener('click', function () {
+      const cur = (window.PlanexStore.state.ui && window.PlanexStore.state.ui.dock) || 'right';
+      window.PlanexStore.setUI({ dock: cur === 'left' ? 'right' : 'left' });
+      applyDock();
+    });
+    applyDock();
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && isOpen) close();
@@ -74,15 +81,24 @@ window.PlanexCopilot = (function () {
     }
   }
 
-  function headHtml(closeId) {
+  function headHtml(closeId, withDock) {
     return `
       <div class="copilot-head">
         <div class="copilot-title">${ic('sparkles')}
           <span>Planex AI</span>
           <span class="copilot-tag">Interior Expert</span>
         </div>
-        <button class="icon-btn" id="${closeId}" title="Close">${ic('collapse')}</button>
+        <div style="display:flex;gap:4px;">
+          ${withDock ? `<button class="icon-btn" id="copilot-dock" title="Move panel">${ic('move')}</button>` : ''}
+          <button class="icon-btn" id="${closeId}" title="Close">${ic('collapse')}</button>
+        </div>
       </div>`;
+  }
+
+  function applyDock() {
+    if (!rail) return;
+    const dock = (window.PlanexStore.state.ui && window.PlanexStore.state.ui.dock) || 'right';
+    rail.classList.toggle('dock-left', dock === 'left');
   }
 
   function target() {

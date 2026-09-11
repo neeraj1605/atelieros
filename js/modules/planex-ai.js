@@ -67,6 +67,7 @@ window.PlanexModules.PlanexAI = (function () {
           <div class="chat-composer">
             ${groundingBanner()}
             <div class="grounding-chips">${groundingChips()}</div>
+            <div class="copilot-chips">${contextChipsHtml()}</div>
             <div class="attachment-strip" id="attach-strip"></div>
             <div class="composer-box">
               <textarea class="composer-input" id="composer-input" rows="1"
@@ -632,5 +633,38 @@ window.PlanexModules.PlanexAI = (function () {
     return `<div class="grounding-banner">${ic('alert')} Validate your floor plan in <strong>Project</strong> so I can be specific to your rooms.</div>`;
   }
 
-  return { render: render, renderIn: renderIn };
+  function currentAct() {
+    const v = store().state.activeView;
+    if (v === 'procurement' || v === 'scope' || v === 'costing' || v === 'quotation') return 'procurement';
+    if (v === 'execution') return 'execution';
+    return 'design';
+  }
+
+  function contextChipsHtml() {
+    const sp = store().activeSpace ? store().activeSpace() : null;
+    const act = currentAct();
+    let chips;
+    if (act === 'procurement') {
+      chips = ['What is included in the scope?', 'Where can I save 10%?', 'Compare suppliers'];
+    } else if (act === 'execution') {
+      chips = ['What is due next?', 'How do I flag a delay?', 'Snag checklist'];
+    } else {
+      chips = [sp ? 'Plan the ' + sp.name : 'Which space should we start with?', 'Suggest a palette', 'Furniture layout'];
+    }
+    return chips.map(function (c) {
+      return '<button class="gchip" data-chip="' + esc(c) + '">' + esc(c) + '</button>';
+    }).join('');
+  }
+
+  // Re-render the context chips in every mounted Copilot body.
+  function refreshChips() {
+    document.querySelectorAll('.copilot-chips').forEach(function (el) {
+      el.innerHTML = contextChipsHtml();
+      el.querySelectorAll('[data-chip]').forEach(function (b) {
+        b.addEventListener('click', function () { sendText(b.getAttribute('data-chip'), []); });
+      });
+    });
+  }
+
+  return { render: render, renderIn: renderIn, refreshChips: refreshChips };
 })();
