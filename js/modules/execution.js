@@ -81,7 +81,8 @@ window.PlanexModules.Execution = (function () {
             <h1 class="serif">Execution Dockets</h1>
             <p>Track every phase, sign off milestones, and run quality checks — from demolition to handover.</p>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            ${(S.stale && S.stale.execution) ? '<span class="badge badge-warning">Dockets changed — refresh</span>' : (S.docketSet ? '<span class="badge badge-success">From dockets</span>' : '')}
             <button class="btn btn-secondary btn-sm" id="exec-snag">${ic('alert')} Log QC Issue</button>
             <button class="btn btn-primary btn-sm" id="exec-handover">${ic('check')} Handover Checklist</button>
           </div>

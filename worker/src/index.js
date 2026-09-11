@@ -12,6 +12,7 @@ import { toGeminiContents, streamReply, extractStructured, streamCritique } from
 import { generateImage } from './image.js';
 import { hasVisualIntent, synthesizeImageSpec, contextIsSufficient } from './intent.js';
 import { buildScopePrompt, normalizeScope } from './scope.js';
+import { buildScopeEnrichPrompt, sanitizeScopeEnrichment } from './scope-enrich.js';
 import { buildRoomsPrompt, normalizeRooms } from './plan.js';
 import { buildDocketPrompt, sanitizeDocketEnrichment } from './docket.js';
 import { buildSheetsPrompt, sanitizeSheetNotes } from './sheets.js';
@@ -153,6 +154,10 @@ export default {
 
       if (url.pathname === '/scope' && request.method === 'POST') {
         return await handleScope(request, env, origin);
+      }
+
+      if (url.pathname === '/scope/enrich' && request.method === 'POST') {
+        return await handleScopeEnrich(request, env, origin);
       }
 
       if (url.pathname === '/plan/rooms' && request.method === 'POST') {
@@ -464,6 +469,45 @@ async function handleScope(request, env, origin) {
     console.error('scope_failed', message);
     return json({ error: 'scope_failed', detail: message.slice(0, 160) }, 502, env, origin);
   }
+}
+
+async function handleScopeEnrich(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  const scopeDoc = body.scopeDoc;
+  if (!scopeDoc || !Array.isArray(scopeDoc.packages)) return json({ error: 'no_scope' }, 400, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const prompt = buildScopeEnrichPrompt(body);
+  const models = [env.GEMINI_DOCKET_MODEL, env.GEMINI_FLASH_MODEL, env.GEMINI_LITE_MODEL].filter(Boolean);
+
+  let result = null;
+  let lastErr = null;
+  for (const m of models) {
+    try { result = await extractStructured(env, prompt, null, m); break; }
+    catch (e) { lastErr = e; }
+  }
+  if (!result) {
+    const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+    console.error('scope_enrich_failed', msg);
+    return json({ error: 'scope_enrich_failed', detail: msg.slice(0, 160) }, 502, env, origin);
+  }
+
+  const enrichment = sanitizeScopeEnrichment(result.parsed, scopeDoc);
+  if (!enrichment) {
+    console.error('scope_enrich_empty', String(result.raw || '').slice(0, 400));
+    return json({ error: 'scope_enrich_empty' }, 422, env, origin);
+  }
+  await db.addAudit(env, auth.projectId, 'scope.enrich', { items: Object.keys(enrichment.byActivityId).length });
+  await addTokens(env, result.tokens || 0);
+  return json({ enrichment }, 200, env, origin);
 }
 
 async function handlePlanRooms(request, env, origin) {

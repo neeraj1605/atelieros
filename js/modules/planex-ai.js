@@ -369,8 +369,16 @@ window.PlanexModules.PlanexAI = (function () {
 
     if (patched) store().pushAudit && store().pushAudit('context.ai_update', {});
     if (hasPlan) {
-      store().updateContext({ notes: 'Site plan received. Rooms extracted as AI estimates — please verify dimensions.' });
+      store().updateContext({ notes: 'Site plan received — reading rooms (AI estimates; verify dimensions).' });
       store().addChatMessage('assistant', 'I can turn this plan into a full room-wise scope of work — flooring, painting, civil, ceiling, lighting, plumbing, joinery and more.', [], { action: 'build-scope' });
+      if (window.PlanexPlanReader && window.PlanexAIClient && window.PlanexAIClient.isEnabled() && store().state.floorplan) {
+        window.PlanexPlanReader.readAndReview(null, {
+          after: function (res) {
+            store().addChatMessage('assistant', 'I read ' + ((res.added || 0) + (res.updated || 0)) + ' spaces from the plan. Review the dimensions, then validate the plan in Project.', []);
+            renderMessages();
+          }
+        });
+      }
     }
 
     streaming = false;

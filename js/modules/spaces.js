@@ -88,11 +88,15 @@ window.PlanexModules.Spaces = (function () {
         <input type="file" id="sp-file" accept="image/*" multiple hidden>
 
         <div class="space-photos" style="margin-top:14px;">
-          ${(s.photos || []).length
-            ? s.photos.map(function (p) { return `<span class="room-img"><img src="${p.dataUrl}" alt="" data-lightbox="${p.dataUrl}"><button data-del-photo="${p.id}" title="Remove">&times;</button></span>`; }).join('')
+          ${photosOf(s).length
+            ? photosOf(s).map(function (p) { return `<span class="room-img"><img src="${p.dataUrl}" alt="" data-lightbox="${p.dataUrl}"><button data-del-photo="${p.id}" title="Remove">&times;</button></span>`; }).join('')
             : '<span class="muted text-sm">No photos yet — add 2–4 photos of this space for the AI to read.</span>'}
         </div>
       </div>`;
+  }
+
+  function photosOf(s) {
+    return (store().state.roomImages && store().state.roomImages[s.id]) || [];
   }
 
   function kindLabel(k) {
@@ -123,58 +127,13 @@ window.PlanexModules.Spaces = (function () {
   }
 
   async function createSpacesFromPlan() {
-    const S = store().state;
-    const fp = S.floorplan;
-    if (!fp) return;
-    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) {
-      window.PlanexUI.toast('Creating spaces from a plan needs the hosted assistant.');
-      return;
-    }
     const btn = document.querySelector('#sp-create');
-    if (btn) { btn.disabled = true; btn.textContent = 'Reading plan…'; }
-    try {
-      const res = await window.PlanexAIClient.readPlan({ kind: 'plan', name: fp.name, dataUrl: fp.dataUrl });
-      const rooms = res.rooms || [];
-      if (!rooms.length) {
-        window.PlanexUI.toast('Could not read rooms from that plan — add spaces manually.');
-        if (btn) { btn.disabled = false; btn.textContent = 'Create spaces from plan (AI)'; }
-        return;
-      }
-      const existing = (S.rooms || []).length;
-      const apply = function (mode) {
-        if (mode === 'replace') store().state.rooms = [];
-        rooms.forEach(function (r) {
-          const nm = r.name;
-          if (mode === 'merge' && (store().state.rooms || []).some(function (x) { return x.name.toLowerCase() === nm.toLowerCase(); })) return;
-          store().addSpace({
-            name: nm,
-            kind: window.PlanexPlanGenerator ? window.PlanexPlanGenerator.kindOf(nm) : 'other',
-            length: r.lengthM, width: r.widthM,
-            source: 'ai-plan', confidence: r.confidence
-          });
-        });
-        store().regeneratePlan();
-        if (store().state.scopeDoc) store().regenerateScope();
-        store().validateFloorplan({ checks: [{ ok: true, label: 'Spaces created from plan' }], warnings: ['Verify dimensions on site.'] });
-        window.PlanexUI.toast('Created ' + rooms.length + ' spaces — adjust any dimensions.');
-        window.PlanexApp.renderView();
-      };
-      if (existing) {
-        window.PlanexUI.modal('Create spaces from plan', `
-          <p class="text-sm" style="margin-bottom:14px;">You already have ${existing} spaces. Replace them, or add only the new rooms?</p>
-          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-            <button class="btn btn-secondary" id="cs-merge">Add new only</button>
-            <button class="btn btn-danger" id="cs-replace">Replace all</button>
-          </div>`);
-        document.querySelector('#cs-merge').addEventListener('click', function () { window.PlanexUI.closeModal(); apply('merge'); });
-        document.querySelector('#cs-replace').addEventListener('click', function () { window.PlanexUI.closeModal(); apply('replace'); });
-      } else {
-        apply('merge');
-      }
-    } catch (e) {
-      window.PlanexUI.toast('Plan reading failed (' + (e && e.status ? e.status : 'network') + ').');
-    }
-    if (btn) { btn.disabled = false; btn.textContent = 'Create spaces from plan (AI)'; }
+    const prev = btn ? btn.textContent : '';
+    await window.PlanexPlanReader.readAndReview(null, {
+      button: btn, busyLabel: 'Reading plan…', restoreLabel: prev,
+      after: function () { window.PlanexUI.toast('Spaces created from the plan — adjust any dimensions, then validate.'); }
+    });
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
   }
 
   function render(container) {
@@ -254,7 +213,6 @@ window.PlanexModules.Spaces = (function () {
         brief: container.querySelector('#sp-brief').value || '',
         style: { directions: (container.querySelector('#sp-style').value || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean), palette: (s.style && s.style.palette) || [] }
       });
-      if (store().state.scopeDoc) store().regenerateScope();
       window.PlanexUI.toast('Space saved.');
       window.PlanexApp.renderView();
     });
@@ -280,9 +238,7 @@ window.PlanexModules.Spaces = (function () {
         if (f.size > 2.5 * 1024 * 1024) { window.PlanexUI.toast('Photo too large (max 2.5 MB).'); return; }
         const reader = new FileReader();
         reader.onload = function () {
-          const photos = (s.photos || []).slice();
-          photos.push({ id: 'ph-' + Date.now() + '-' + Math.random().toString(36).slice(2, 4), name: f.name, dataUrl: reader.result });
-          store().updateSpace(s.id, { photos: photos });
+          store().addSpacePhoto(s.id, { name: f.name, dataUrl: reader.result, size: f.size });
           window.PlanexApp.renderView();
         };
         reader.readAsDataURL(f);
@@ -291,7 +247,7 @@ window.PlanexModules.Spaces = (function () {
     container.querySelectorAll('[data-del-photo]').forEach(function (b) {
       b.addEventListener('click', function () {
         const id = b.getAttribute('data-del-photo');
-        store().updateSpace(s.id, { photos: (s.photos || []).filter(function (p) { return p.id !== id; }) });
+        store().removeRoomImage(s.id, id);
         window.PlanexApp.renderView();
       });
     });
@@ -321,7 +277,6 @@ window.PlanexModules.Spaces = (function () {
         length: Number(document.querySelector('#ns-len').value) || 0,
         width: Number(document.querySelector('#ns-wid').value) || 0
       });
-      if (store().state.scopeDoc) store().regenerateScope();
       window.PlanexUI.closeModal();
       selected = s.id;
       store().setActiveSpace(s.id);

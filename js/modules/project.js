@@ -287,143 +287,22 @@ window.PlanexModules.Project = (function () {
   }
 
   async function readRooms() {
-    const fp = store().state.floorplan;
-    if (!fp) { window.PlanexUI.toast('Upload a floor plan first.'); return; }
-    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) { window.PlanexUI.toast('Reading a plan needs the hosted assistant.'); return; }
-
     const btn = document.querySelector('#fp-read');
     const prev = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Reading plan…'; }
-    try {
-      const res = await window.PlanexAIClient.readPlan({ kind: 'plan', name: fp.name, dataUrl: fp.dataUrl });
-      const aiRooms = res.rooms || [];
-      if (!aiRooms.length) { window.PlanexUI.toast('Could not read rooms from that plan.'); if (btn) { btn.disabled = false; btn.textContent = prev; } return; }
-      if (btn) { btn.disabled = false; btn.textContent = prev; }
-      openDiffReview(aiRooms);
-    } catch (e) {
-      window.PlanexUI.toast('Plan reading failed (' + (e && e.status ? e.status : 'network') + ').');
-      if (btn) { btn.disabled = false; btn.textContent = prev; }
-    }
-  }
-
-  function openDiffReview(aiRooms) {
-    const current = store().state.rooms || [];
-    const curBy = {};
-    current.forEach(function (r) { curBy[String(r.name).toLowerCase()] = r; });
-    const aiBy = {};
-    aiRooms.forEach(function (r) { aiBy[String(r.name).toLowerCase()] = r; });
-
-    const rows = aiRooms.map(function (r, i) {
-      const cur = curBy[String(r.name).toLowerCase()];
-      let status = 'new', detail = 'New room from the plan';
-      if (cur) {
-        const dx = Math.abs((Number(cur.length) || 0) - r.lengthM);
-        const dy = Math.abs((Number(cur.width) || 0) - r.widthM);
-        if (dx > 0.15 || dy > 0.15) { status = 'changed'; detail = 'Was ' + (cur.length || 0) + ' × ' + (cur.width || 0) + ' m'; }
-        else { status = 'match'; detail = 'Matches your list'; }
-      }
-      const badge = status === 'new' ? 'badge-info' : status === 'changed' ? 'badge-warning' : 'badge-success';
-      const label = status === 'new' ? 'New' : status === 'changed' ? 'Changed' : 'Matches';
-      return `<label class="diff-row">
-        <input type="checkbox" ${status === 'match' ? '' : 'checked'} ${status === 'match' ? 'disabled' : ''} data-diff-ai="${i}">
-        <span class="diff-name">${esc(r.name)}</span>
-        <span class="faint nowrap">${r.lengthM} × ${r.widthM} m</span>
-        <span class="badge ${badge}">${label}</span>
-        <span class="faint text-xs">${esc(detail)}</span>
-      </label>`;
-    }).join('');
-
-    const missing = current.filter(function (r) { return !aiBy[String(r.name).toLowerCase()]; });
-    const missRows = missing.map(function (r, i) {
-      return `<label class="diff-row">
-        <input type="checkbox" data-diff-del="${i}">
-        <span class="diff-name">${esc(r.name)}</span>
-        <span class="faint nowrap">${r.length || 0} × ${r.width || 0} m</span>
-        <span class="badge badge-neutral">Not found</span>
-        <span class="faint text-xs">Tick to remove</span>
-      </label>`;
-    }).join('');
-
-    window.PlanexUI.modal('Review rooms from the plan', `
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <p class="muted text-sm">I read these rooms from your plan. Nothing changes until you apply.</p>
-        <div><div class="text-xs uppercase faint bold" style="margin-bottom:6px;">From the plan</div>${rows || '<p class="muted text-sm">No rooms found.</p>'}</div>
-        ${missing.length ? `<div><div class="text-xs uppercase faint bold" style="margin-bottom:6px;">Not found on the plan</div>${missRows}</div>` : ''}
-        <p class="muted text-sm">After applying, review the Area Schedule and hit <strong>Validate plan</strong>.</p>
-        <button class="btn btn-primary btn-block" id="diff-apply">Apply changes</button>
-      </div>
-    `);
-    document.querySelector('#diff-apply').addEventListener('click', function () { applyDiff(aiRooms, missing); });
-  }
-
-  function applyDiff(aiRooms, missing) {
-    const current = store().state.rooms || [];
-    const accepted = {};
-    document.querySelectorAll('[data-diff-ai]').forEach(function (b) {
-      if (b.disabled || b.checked) accepted[Number(b.getAttribute('data-diff-ai'))] = true;
+    const aiRooms = await window.PlanexPlanReader.readAndReview(null, {
+      button: btn, busyLabel: 'Reading plan…', restoreLabel: prev,
+      after: function () { window.PlanexUI.toast('Review the Area Schedule, then hit Validate plan.'); }
     });
-    const toRemove = {};
-    document.querySelectorAll('[data-diff-del]').forEach(function (b) {
-      if (b.checked) toRemove[Number(b.getAttribute('data-diff-del'))] = true;
-    });
-
-    const palette = ['#c9a27a', '#8aa4a0', '#b9a3c9', '#e0b98a', '#a8b89a', '#9db8c9'];
-    const result = [];
-
-    aiRooms.forEach(function (r, i) {
-      if (!accepted[i]) return;
-      const cur = current.filter(function (c) { return String(c.name).toLowerCase() === String(r.name).toLowerCase(); })[0];
-      result.push({
-        id: cur ? cur.id : ('room-' + Date.now() + '-' + i),
-        name: r.name,
-        length: r.lengthM,
-        width: r.widthM,
-        area: (Number(r.lengthM) * Number(r.widthM)).toFixed(1) + ' m²',
-        color: cur ? cur.color : palette[result.length % palette.length],
-        type: cur ? cur.type : 'private',
-        source: 'ai-plan',
-        confidence: r.confidence || 'low'
-      });
-    });
-
-    (missing || []).forEach(function (r, i) { if (!toRemove[i]) result.push(r); });
-
-    if (!result.length) { window.PlanexUI.toast('No rooms selected.'); return; }
-    store().state.rooms = result;
-    store().unvalidateFloorplan();
-    store().commit();
-    window.PlanexUI.closeModal();
-    window.PlanexApp.renderView();
-    window.PlanexUI.toast('Applied. Review the rooms, then Validate plan.');
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
+    return aiRooms;
   }
 
   async function aiValidate() {
-    const fp = store().state.floorplan;
-    if (!fp) return;
-    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) { window.PlanexUI.toast('AI validation needs the hosted assistant.'); return; }
+    if (!store().state.floorplan) return;
     const btn = document.querySelector('#fp-aivalidate');
     const prev = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
-    try {
-      const res = await window.PlanexAIClient.readPlan({ kind: 'plan', name: fp.name, dataUrl: fp.dataUrl });
-      const aiRooms = (res.rooms || []).map(function (r) { return r.name; });
-      const mine = store().state.rooms.map(function (r) { return r.name; });
-      const missing = aiRooms.filter(function (n) { return !mine.some(function (m) { return m.toLowerCase() === n.toLowerCase(); }); });
-      const extra = mine.filter(function (n) { return !aiRooms.some(function (a) { return a.toLowerCase() === n.toLowerCase(); }); });
-      const lines = [];
-      if (missing.length) lines.push('The plan appears to include: ' + missing.join(', '));
-      if (extra.length) lines.push('Not clearly found on the plan: ' + extra.join(', '));
-      if (!lines.length) lines.push('The room list matches what I read from the plan.');
-      window.PlanexUI.modal('AI plan validation', `
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <p class="muted text-sm">This only reports differences — it never changes your room list.</p>
-          <div class="validation-list">${lines.map(function (l) { return `<div class="validation-row ${lines.length && l.indexOf('matches') >= 0 ? 'ok' : 'warn'}">${ic('alert')} <span>${esc(l)}</span></div>`; }).join('')}</div>
-          <p class="muted text-sm">AI room count: ${aiRooms.length} · Your list: ${mine.length}</p>
-        </div>
-      `);
-    } catch (e) {
-      window.PlanexUI.toast('AI validation failed (' + (e && e.status ? e.status : 'network') + ').');
-    }
+    await window.PlanexPlanReader.validateOnly();
     if (btn) { btn.disabled = false; btn.textContent = prev; }
   }
 
@@ -433,8 +312,8 @@ window.PlanexModules.Project = (function () {
     room[key] = Math.max(0, Number(value) || 0);
     room.area = (Number(room.length) * Number(room.width)).toFixed(1) + ' m²';
     store().unvalidateFloorplan();
+    store().rebuildDerived();
     store().commit();
-    if (store().state.scopeDoc) store().regenerateScope();
     window.PlanexApp.renderView();
   }
 

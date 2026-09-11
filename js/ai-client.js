@@ -246,6 +246,27 @@ window.PlanexAIClient = (function () {
     return res.json();
   }
 
+  async function enrichScope(payload) {
+    const session = await ensureSession(false);
+    const res = await fetch(base() + '/scope/enrich', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + session.token
+      },
+      body: JSON.stringify(payload || {})
+    });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch (e) { /* ignore */ }
+      const err = new Error(detail.error || ('scope_enrich_' + res.status));
+      err.status = res.status;
+      err.detail = detail;
+      throw err;
+    }
+    return res.json();
+  }
+
   async function readPlan(plan) {
     const session = await ensureSession(false);
     const res = await fetch(base() + '/plan/rooms', {
@@ -359,6 +380,7 @@ window.PlanexAIClient = (function () {
     send: send,
     generateImage: generateImage,
     buildScope: buildScope,
+    enrichScope: enrichScope,
     readPlan: readPlan,
     enrichDocket: enrichDocket,
     planSheets: planSheets,

@@ -348,9 +348,17 @@
     // theme
     applyTheme(S.theme);
 
-    // restore view from hash
+    // restore view from hash (deep-link straight into the right surface)
     const hash = (location.hash || '').replace('#', '');
-    if (hash && LABELS[hash]) S.activeView = hash;
+    if (hash && LABELS[hash]) {
+      S.activeView = hash;
+      if (VIEW_TO_UI[hash]) {
+        S.ui = Object.assign({
+          dock: 'right', collapsed: false, act: 'design', designSub: 'spaces',
+          procurementSub: 'scope', seenHowItWorks: false
+        }, S.ui, { view: 'workspace' }, VIEW_TO_UI[hash]);
+      }
+    }
     // First run: teach the journey before anything else.
     if (!(S.ui && S.ui.seenHowItWorks) && !hash) S.activeView = 'how';
 
@@ -442,6 +450,9 @@
       const v = (location.hash || '').replace('#', '');
       if (LABELS[v] && v !== store.state.activeView) {
         store.state.activeView = v;
+        if (VIEW_TO_UI[v]) {
+          window.PlanexStore.setUI(Object.assign({ view: 'workspace' }, VIEW_TO_UI[v]));
+        }
         renderView();
       }
     });

@@ -73,7 +73,15 @@ window.PlanexStore = (function () {
       sheetNotes: {},
       activeSpaceId: 'all',
       moodboards: {},
-      theme: { directions: ['Warm Minimal', 'Japandi'], palette: [] }
+      theme: { directions: ['Warm Minimal', 'Japandi'], palette: [] },
+      derived: {
+        plan: { inputHash: '', builtAt: '' },
+        scope: { inputHash: '', builtAt: '', edited: false },
+        boq: { scopeHash: '', builtAt: '' },
+        dockets: { docketHash: '', builtAt: '' },
+        execution: { docketHash: '', builtAt: '' }
+      },
+      stale: { plan: false, scope: false, boq: false, dockets: false, execution: false }
     };
     initial.project.projectType = 'ready';
     initial.project.plan = 'ai';
@@ -106,6 +114,30 @@ window.PlanexStore = (function () {
           if (state.activeSpaceId === undefined) state.activeSpaceId = 'all';
           if (!state.moodboards || typeof state.moodboards !== 'object') state.moodboards = {};
           if (!state.theme) state.theme = { directions: [], palette: [] };
+          if (!state.derived || typeof state.derived !== 'object') state.derived = {
+            plan: { inputHash: '', builtAt: '' },
+            scope: { inputHash: '', builtAt: '', edited: false },
+            boq: { scopeHash: '', builtAt: '' },
+            dockets: { docketHash: '', builtAt: '' },
+            execution: { docketHash: '', builtAt: '' }
+          };
+          ['plan', 'scope', 'boq', 'dockets', 'execution'].forEach(function (k) {
+            if (!state.derived[k]) state.derived[k] = {};
+          });
+          if (!state.stale || typeof state.stale !== 'object') state.stale = {};
+          ['plan', 'scope', 'boq', 'dockets', 'execution'].forEach(function (k) {
+            if (typeof state.stale[k] !== 'boolean') state.stale[k] = false;
+          });
+          // Migrate legacy per-space photos into the canonical roomImages map.
+          if (Array.isArray(state.rooms)) state.rooms.forEach(function (r) {
+            if (Array.isArray(r.photos) && r.photos.length) {
+              if (!state.roomImages[r.id]) state.roomImages[r.id] = [];
+              const known = state.roomImages[r.id].map(function (p) { return p.dataUrl; });
+              r.photos.forEach(function (p) {
+                if (p && p.dataUrl && known.indexOf(p.dataUrl) < 0) state.roomImages[r.id].push(p);
+              });
+            }
+          });
           if (Array.isArray(state.rooms)) state.rooms.forEach(function (r) {
             if (r.kind === undefined) r.kind = (window.PlanexPlanGenerator && window.PlanexPlanGenerator.kindOf) ? window.PlanexPlanGenerator.kindOf(r.name) : 'other';
             if (!Array.isArray(r.photos)) r.photos = [];
@@ -150,6 +182,13 @@ window.PlanexStore = (function () {
   function subscribe(fn) { listeners.push(fn); return () => { listeners = listeners.filter(l => l !== fn); }; }
   function notify() { listeners.forEach(fn => { try { fn(state); } catch (e) { console.error(e); } }); }
   function commit() { persist(); notify(); }
+
+  // Notify the project spine so derived artifacts cascade.
+  function touch() {
+    if (window.PlanexSpine && window.PlanexSpine.onChange) {
+      try { window.PlanexSpine.onChange(); } catch (e) { console.warn('Planex spine:', e); }
+    }
+  }
 
   /* ---------- Currency ---------- */
   function setCurrency(code) {
@@ -271,6 +310,7 @@ window.PlanexStore = (function () {
       setFloorplanInternal(file);
       state.context.notes += ' Site plan uploaded.';
     }
+    touch();
     commit();
   }
 
@@ -292,12 +332,14 @@ window.PlanexStore = (function () {
   function setFloorplan(file) {
     if (!file || !file.dataUrl) return null;
     setFloorplanInternal(file);
+    touch();
     commit();
     return state.floorplan;
   }
 
   function clearFloorplan() {
     state.floorplan = null;
+    touch();
     commit();
   }
 
@@ -307,6 +349,7 @@ window.PlanexStore = (function () {
     state.floorplan.validatedAt = new Date().toISOString();
     state.floorplan.validation = validation || { checks: [], warnings: [] };
     pushAudit('plan.validate', { warnings: ((validation && validation.warnings) || []).length });
+    touch();
     commit();
     return true;
   }
@@ -315,6 +358,7 @@ window.PlanexStore = (function () {
     if (state.floorplan && state.floorplan.validated) {
       state.floorplan.validated = false;
       state.floorplan.validatedAt = null;
+      touch();
       commit();
     }
   }
@@ -454,12 +498,13 @@ window.PlanexStore = (function () {
   function setProjectType(pt) {
     if (!state.project) state.project = {};
     state.project.projectType = pt;
+    touch();
     commit();
   }
 
-  function setScopeQuality(q) { state.scopeQuality = q; commit(); }
+  function setScopeQuality(q) { state.scopeQuality = q; touch(); commit(); }
 
-  function setScopeDoc(doc) { state.scopeDoc = doc || null; commit(); }
+  function setScopeDoc(doc) { state.scopeDoc = doc || null; touch(); commit(); }
 
   function regenerateScope() {
     if (!window.PlanexScopeEngine) return null;
@@ -469,10 +514,18 @@ window.PlanexStore = (function () {
       rooms: state.rooms,
       budget: state.project && state.project.budget
     });
+    if (state.derived && state.derived.scope) {
+      state.derived.scope = {
+        inputHash: window.PlanexSpine ? window.PlanexSpine.scopeInputHash(state) : '',
+        builtAt: new Date().toISOString(),
+        edited: false
+      };
+    }
     pushAudit('scope.generate', {
       projectType: state.scopeDoc.projectType,
       packages: state.scopeDoc.packages.length
     });
+    touch();
     commit();
     return state.scopeDoc;
   }
@@ -485,33 +538,72 @@ window.PlanexStore = (function () {
   }
 
   // Push scope activities into the BOQ (rates carried over, still editable).
-  function addScopeToBOQ(packageId) {
+  // opts.replace keeps user-edited qty/rate for scope-derived lines instead of duplicating.
+  function scopeBoqKey(act, pkgName) {
+    return [(act.room || ''), pkgName, act.name + (act.detail ? ' — ' + act.detail : '')].join('|').toLowerCase();
+  }
+
+  function addScopeToBOQ(packageId, opts) {
     const doc = state.scopeDoc;
     if (!doc || !Array.isArray(doc.packages)) return 0;
+    opts = opts || {};
+    const replace = !!opts.replace;
+
+    const prior = {};
+    if (replace) {
+      state.boq.forEach(function (b) { if (b.fromScope) prior[b.scopeKey] = { qty: b.qty, rate: b.rate }; });
+      state.boq = state.boq.filter(function (b) { return !b.fromScope; });
+    }
+
     let added = 0;
     doc.packages.forEach(function (pkg) {
       if (packageId && pkg.id !== packageId) return;
       pkg.activities.forEach(function (act) {
         if (act.included === false) return;
+        const key = scopeBoqKey(act, pkg.name);
+        if (!replace) {
+          const dup = state.boq.some(function (b) { return b.fromScope && b.scopeKey === key; });
+          if (dup) return;
+        }
+        const prev = prior[key];
         state.boq.push({
           id: 'b-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
           room: act.room || '',
           category: pkg.name,
           item: act.name + (act.detail ? ' — ' + act.detail : ''),
-          qty: Number(act.qty) || 0,
+          qty: prev ? prev.qty : (Number(act.qty) || 0),
           unit: act.unit || 'nos',
-          rate: Number(act.rate) || 0
+          rate: prev ? prev.rate : (Number(act.rate) || 0),
+          fromScope: true,
+          scopeKey: key
         });
         added++;
       });
     });
-    pushAudit('scope.to_boq', { package: packageId || 'all', items: added });
+    if (state.derived && state.derived.boq) {
+      state.derived.boq = {
+        scopeHash: window.PlanexSpine ? window.PlanexSpine.scopeInputHash(state) : '',
+        builtAt: new Date().toISOString()
+      };
+    }
+    pushAudit('scope.to_boq', { package: packageId || 'all', items: added, replace: replace });
+    touch();
     commit();
     return added;
   }
 
   /* ---------- Design dockets ---------- */
-  function setDocketSet(set) { state.docketSet = set || null; commit(); }
+  function setDocketSet(set) {
+    state.docketSet = set || null;
+    if (state.derived && state.derived.dockets && set && window.PlanexSpine) {
+      state.derived.dockets = {
+        docketHash: window.PlanexSpine.docketHash(state.scopeDoc, state.rooms, state.moodboards, state.project && state.project.projectType, state.scopeQuality),
+        builtAt: new Date().toISOString()
+      };
+    }
+    touch();
+    commit();
+  }
 
   function updateDocketCell(docketId, sectionKey, rowIndex, colIndex, value) {
     const set = state.docketSet;
@@ -564,6 +656,13 @@ window.PlanexStore = (function () {
   function regeneratePlan() {
     if (!window.PlanexPlanGenerator) return null;
     state.plan = window.PlanexPlanGenerator.generatePlan(state.rooms);
+    if (state.derived && state.derived.plan) {
+      state.derived.plan = {
+        inputHash: window.PlanexSpine ? window.PlanexSpine.roomsHash(state.rooms) : '',
+        builtAt: new Date().toISOString()
+      };
+    }
+    touch();
     commit();
     return state.plan;
   }
@@ -608,6 +707,7 @@ window.PlanexStore = (function () {
     s.area = (Number(s.length) * Number(s.width)).toFixed(1) + ' m²';
     state.rooms.push(s);
     unvalidateFloorplan();
+    touch();
     commit();
     return s;
   }
@@ -618,6 +718,8 @@ window.PlanexStore = (function () {
     if (patch && (patch.length != null || patch.width != null)) {
       s.area = (Number(s.length) * Number(s.width)).toFixed(1) + ' m²';
     }
+    unvalidateFloorplan();
+    touch();
     commit();
     return s;
   }
@@ -625,10 +727,11 @@ window.PlanexStore = (function () {
     state.rooms = state.rooms.filter(function (r) { return r.id !== id; });
     if (state.activeSpaceId === id) state.activeSpaceId = 'all';
     unvalidateFloorplan();
+    touch();
     commit();
   }
-  function setMoodboard(spaceId, mb) { state.moodboards[spaceId] = mb || null; commit(); }
-  function setTheme(patch) { state.theme = Object.assign({ directions: [], palette: [] }, state.theme, patch || {}); commit(); }
+  function setMoodboard(spaceId, mb) { state.moodboards[spaceId] = mb || null; touch(); commit(); }
+  function setTheme(patch) { state.theme = Object.assign({ directions: [], palette: [] }, state.theme, patch || {}); touch(); commit(); }
 
   /* ---------- Status & journey ---------- */
   function confirmScope() {
@@ -640,34 +743,149 @@ window.PlanexStore = (function () {
   }
 
   function statusOf(artifact) {
+    const stale = state.stale || {};
     if (artifact === 'plan') {
       const fp = state.floorplan;
-      return fp ? (fp.validated ? 'validated' : 'draft') : 'draft';
+      if (!fp) return 'draft';
+      if (stale.plan) return 'stale';
+      return fp.validated ? 'validated' : 'draft';
     }
     if (artifact === 'scope') {
-      return state.scopeDoc ? (state.scopeConfirmed ? 'validated' : 'indicative') : 'draft';
+      if (!state.scopeDoc) return 'draft';
+      if (stale.scope) return 'stale';
+      return state.scopeConfirmed ? 'validated' : 'indicative';
     }
     if (artifact === 'costing') {
-      return (state.boq && state.boq.length) ? 'firm' : 'draft';
+      if (!(state.boq && state.boq.length)) return 'draft';
+      return stale.boq ? 'stale' : 'firm';
     }
     if (artifact === 'dockets') {
       const set = state.docketSet;
       if (!set) return 'draft';
+      if (stale.dockets) return 'stale';
       return set.dockets.some(function (d) { return d.ai; }) ? 'enriched' : 'built';
+    }
+    if (artifact === 'execution') {
+      if (!state.docketSet) return 'draft';
+      return stale.execution ? 'stale' : 'tracking';
     }
     return 'draft';
   }
 
   function nextAction() {
+    const stale = state.stale || {};
     const fp = state.floorplan;
     if (!fp) return { label: 'Upload floor plan', view: 'project' };
     if (!fp.validated) return { label: 'Validate floor plan', view: 'project' };
     if (!state.scopeDoc) return { label: 'Build the scope', view: 'scope' };
     if (!state.scopeConfirmed) return { label: 'Confirm the scope', view: 'scope' };
     if (!state.boq || !state.boq.length) return { label: 'Price the scope', view: 'costing' };
+    if (stale.boq) return { label: 'Re-price the scope', view: 'costing' };
     if (!state.docketSet) return { label: 'Generate dockets', view: 'docket' };
+    if (stale.dockets) return { label: 'Refresh dockets', view: 'docket' };
     if (!state.selectedVendorId) return { label: 'Send RFQ to vendors', view: 'quotation' };
     return { label: 'Track execution', view: 'execution' };
+  }
+
+  function rebuildDerived(opts) {
+    if (window.PlanexSpine && window.PlanexSpine.refresh) return window.PlanexSpine.refresh(opts || { interactive: true });
+    return state.stale || {};
+  }
+
+  /* Apply AI-read rooms with stable ids and kind. Shared by every plan reader. */
+  function applyRoomsDiff(aiRooms, opts) {
+    opts = opts || {};
+    const palette = ['#c9a27a', '#8aa4a0', '#b9a3c9', '#e0b98a', '#a8b89a', '#9db8c9'];
+    const mode = opts.mode || 'merge';
+    const current = state.rooms || [];
+    const result = mode === 'replace' ? [] : current.slice();
+    let added = 0, updated = 0, removed = 0;
+
+    (aiRooms || []).forEach(function (r) {
+      const nm = String((r && r.name) || '').trim();
+      if (!nm) return;
+      const len = Number(r.lengthM != null ? r.lengthM : r.length) || 0;
+      const wid = Number(r.widthM != null ? r.widthM : r.width) || 0;
+      const existing = result.filter(function (x) { return String(x.name).toLowerCase() === nm.toLowerCase(); })[0];
+      if (existing) {
+        existing.length = len || existing.length;
+        existing.width = wid || existing.width;
+        existing.area = (Number(existing.length) * Number(existing.width)).toFixed(1) + ' m²';
+        existing.source = 'ai-plan';
+        existing.confidence = r.confidence || existing.confidence;
+        updated++;
+      } else {
+        result.push({
+          id: r.id || ('room-' + Date.now() + '-' + result.length),
+          name: nm,
+          kind: r.kind || (window.PlanexPlanGenerator ? window.PlanexPlanGenerator.kindOf(nm) : 'other'),
+          length: len,
+          width: wid,
+          area: (len * wid).toFixed(1) + ' m²',
+          color: palette[result.length % palette.length],
+          type: 'private',
+          photos: [],
+          style: { directions: [], palette: [] },
+          brief: '',
+          status: 'define',
+          source: 'ai-plan',
+          confidence: r.confidence || 'low'
+        });
+        added++;
+      }
+    });
+
+    if (Array.isArray(opts.removals) && opts.removals.length) {
+      const rm = opts.removals.map(function (n) { return String(n).toLowerCase(); });
+      for (let i = result.length - 1; i >= 0; i--) {
+        if (rm.indexOf(String(result[i].name).toLowerCase()) >= 0) { result.splice(i, 1); removed++; }
+      }
+    }
+
+    state.rooms = result;
+    unvalidateFloorplan();
+    pushAudit('rooms.apply', { mode: mode, added: added, updated: updated, removed: removed });
+    touch();
+    commit();
+    return { added: added, updated: updated, removed: removed };
+  }
+
+  // Photos for a space, stored in the canonical roomImages map the AI reads.
+  function addSpacePhoto(spaceId, file) {
+    if (!spaceId || !file || !file.dataUrl) return null;
+    const entry = {
+      id: 'img-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      name: file.name || 'space.jpg',
+      mime: (String(file.dataUrl).match(/^data:([^;]+)/) || [])[1] || 'image/jpeg',
+      dataUrl: file.dataUrl,
+      size: file.size || 0,
+      addedAt: new Date().toISOString()
+    };
+    if (!state.roomImages[spaceId]) state.roomImages[spaceId] = [];
+    state.roomImages[spaceId].push(entry);
+    if (state.roomImages[spaceId].length > 12) state.roomImages[spaceId].shift();
+    commit();
+    return entry;
+  }
+
+  // Merge AI scope enrichment (detail/make/spec only — never qty/rate).
+  function mergeScopeEnrichment(enrichment) {
+    if (!enrichment || !state.scopeDoc || !Array.isArray(state.scopeDoc.packages)) return 0;
+    const by = enrichment.byActivityId || {};
+    let n = 0;
+    state.scopeDoc.packages.forEach(function (p) {
+      (p.activities || []).forEach(function (a) {
+        const e = by[a.id];
+        if (!e) return;
+        if (e.detail) { a.detail = String(e.detail).slice(0, 200); a.enriched = true; n++; }
+        if (e.make) a.make = String(e.make).slice(0, 80);
+        if (e.spec) a.spec = String(e.spec).slice(0, 160);
+      });
+    });
+    pushAudit('scope.enrich', { items: n });
+    touch();
+    commit();
+    return n;
   }
 
   /* Apply a proposal the user explicitly confirmed. */
@@ -686,25 +904,7 @@ window.PlanexStore = (function () {
         rate: Number(p.rate) || 0
       });
     } else if (proposal.type === 'room.upsert') {
-      const existing = state.rooms.find(function (r) {
-        return (p.id && r.id === p.id) || r.name.toLowerCase() === String(p.name || '').toLowerCase();
-      });
-      if (existing) {
-        existing.name = p.name || existing.name;
-        existing.length = Number(p.lengthM) || existing.length;
-        existing.width = Number(p.widthM) || existing.width;
-        existing.area = (existing.length * existing.width).toFixed(1) + ' m²';
-      } else {
-        state.rooms.push({
-          id: p.id || ('room-' + Date.now()),
-          name: p.name,
-          length: Number(p.lengthM) || 0,
-          width: Number(p.widthM) || 0,
-          area: ((Number(p.lengthM) || 0) * (Number(p.widthM) || 0)).toFixed(1) + ' m²',
-          color: '#9db8c9',
-          type: 'private'
-        });
-      }
+      applyRoomsDiff([{ id: p.id, name: p.name, lengthM: p.lengthM, widthM: p.widthM }], { mode: 'merge' });
     } else if (proposal.type === 'style.apply') {
       state.context.style = window.PlanexContext.mergePatch(state.context.style || {}, {
         directions: p.directions || [],
@@ -714,6 +914,7 @@ window.PlanexStore = (function () {
       return false;
     }
     pushAudit('proposal.apply', { type: proposal.type, id: proposal.id });
+    touch();
     commit();
     return true;
   }
@@ -755,9 +956,37 @@ window.PlanexStore = (function () {
         })
       } : null,
       rooms: state.rooms.map(function (r) { return { id: r.id, name: r.name, lengthM: r.length, widthM: r.width }; }),
-      boqLines: state.boq.slice(0, 60).map(function (b) {
+      boqLines: state.boq.slice(0, 40).map(function (b) {
         return { room: b.room, category: b.category, item: b.item, qty: b.qty, unit: b.unit, rate: b.rate };
-      })
+      }),
+      dockets: (state.docketSet ? state.docketSet.dockets : []).map(function (d) {
+        return {
+          id: d.id, name: d.name, trade: d.trade,
+          rows: d.sections.reduce(function (n, s) { return n + ((s.rows && s.rows.length) || 0); }, 0),
+          enriched: !!d.ai,
+          notes: (d.notes || []).slice(0, 3)
+        };
+      }),
+      moodboards: Object.keys(state.moodboards || {}).map(function (sid) {
+        const m = state.moodboards[sid] || {};
+        const sp = state.rooms.filter(function (r) { return r.id === sid; })[0];
+        if (!sp) return null;
+        return {
+          space: sp.name,
+          palette: (m.palette || []).map(function (c) { return ((c.role || '') + ' ' + (c.hex || '')).trim(); }).slice(0, 8),
+          materials: (m.materials || []).map(function (x) { return (x.surface || '') + ': ' + (x.material || '') + (x.make ? ' (' + x.make + ')' : ''); }).slice(0, 8)
+        };
+      }).filter(Boolean),
+      vendors: state.vendors.map(function (v) {
+        const q = quoteFor(v);
+        return { id: v.id, name: v.name, tier: v.tier, total: q.total, leadTime: v.leadTime, warranty: v.warranty };
+      }),
+      selectedVendorId: state.selectedVendorId,
+      execution: {
+        phases: (state.timeline || []).map(function (p) { return { name: p.name, progress: p.progress, status: p.status }; }),
+        openQc: (state.qc || []).filter(function (q) { return q.status !== 'Resolved'; }).length
+      },
+      staleness: state.stale || {}
     };
   }
 
@@ -786,12 +1015,13 @@ window.PlanexStore = (function () {
     setView, setTheme, setActiveRoom, updateBOQItem, selectVendor,
     toggleMilestone, setQcStatus, addChatMessage, addUpload, removeUpload, updateContext,
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
-    setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
+    setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ, mergeScopeEnrichment, scopeBoqKey,
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
     setPlan, regeneratePlan, setSheetNotes,
     spaceById, activeSpace, setActiveSpace, addSpace, updateSpace, removeSpace, setMoodboard, setTheme,
+    addSpacePhoto, applyRoomsDiff,
     setServicePlan, setUI, markHowItWorksSeen, setArtifact, setSurface,
-    confirmScope, statusOf, nextAction,
+    confirmScope, statusOf, nextAction, rebuildDerived,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,
     reset

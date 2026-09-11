@@ -254,6 +254,20 @@ window.PlanexModules.DesignDocket = (function () {
     });
   }
 
+  function moodPaletteChips() {
+    const set = store().state.docketSet;
+    if (!set || !set.paletteByRoom) return '';
+    const all = {};
+    Object.keys(set.paletteByRoom).forEach(function (nm) {
+      (set.paletteByRoom[nm] || []).forEach(function (c) { if (c.hex) all[c.hex] = c; });
+    });
+    const list = Object.keys(all).slice(0, 8);
+    if (!list.length) return '';
+    return '<div class="docket-palette" title="Colours carried from your space moodboards">' + list.map(function (h) {
+      return '<span class="palette-dot" style="background:' + esc(h) + '" title="' + esc(((all[h].name || '') + ' ' + h).trim()) + '"></span>';
+    }).join('') + '</div>';
+  }
+
   function documentView(d) {
     if (!d) return '<p class="muted">No docket selected.</p>';
     const refs = d.refs || {};
@@ -269,6 +283,7 @@ window.PlanexModules.DesignDocket = (function () {
               ${d.ai ? '<span class="badge badge-info">AI enriched</span>' : ''}
               <span class="badge badge-neutral">Scope: ${(refs.scopePackages || []).join(', ')}</span>
             </div>
+            ${moodPaletteChips()}
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${d.id === 'furniture' ? `<button class="btn btn-secondary btn-sm" id="dk-print-furniture">${ic('print')} Furniture pack</button>` : ''}
@@ -305,7 +320,8 @@ window.PlanexModules.DesignDocket = (function () {
             <h1 class="serif">Design Docket</h1>
             <p>Execution dockets for the site agency and suppliers — furniture, lighting, ceiling, paint and every trade.</p>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            ${(S.stale && S.stale.dockets) ? '<span class="badge badge-warning">Inputs changed — rebuild</span>' : ''}
             <button class="btn btn-primary btn-sm" id="dk-generate">${ic('docket')} ${set ? 'Regenerate dockets' : 'Generate dockets'}</button>
             ${set ? `<button class="btn btn-secondary btn-sm" id="dk-print-all">${ic('print')} Print pack</button>` : ''}
           </div>
@@ -496,7 +512,10 @@ window.PlanexModules.DesignDocket = (function () {
       rooms: S.rooms,
       plan: S.floorplan,
       quality: S.scopeQuality || 'standard',
-      projectType: (S.project && S.project.projectType) || 'ready'
+      projectType: (S.project && S.project.projectType) || 'ready',
+      moodboards: S.moodboards,
+      theme: S.theme,
+      activeSpaceId: S.activeSpaceId
     });
     store().setDocketSet(set);
     window.PlanexUI.toast('Generated ' + set.dockets.length + ' dockets.');

@@ -608,6 +608,8 @@
   display: inline-block; width: 18px; height: 18px; border-radius: 50%;
   border: 1px solid var(--border-strong);
 }
+.docket-palette { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.docket-palette .palette-dot { width: 16px; height: 16px; }
 .msg-body .bubble .typing { padding: 0; background: transparent; }
 
 /* ---------- Scope of work ---------- */

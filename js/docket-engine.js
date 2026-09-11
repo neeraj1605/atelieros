@@ -26,6 +26,38 @@ window.PlanexDocketEngine = (function () {
 
   function provisional(plan) { return !(plan && plan.validated); }
 
+  // ---- moodboard → spec helpers (the chosen look reaches the schedules) ----
+  function moodIndex(moodboards, rooms) {
+    const idx = {};
+    const byId = {};
+    (rooms || []).forEach(function (r) { byId[r.id] = r.name; });
+    Object.keys(moodboards || {}).forEach(function (sid) {
+      const mb = moodboards[sid];
+      if (!mb) return;
+      const nm = byId[sid] || sid;
+      idx[String(nm).toLowerCase()] = mb;
+    });
+    return idx;
+  }
+  function moodFor(ctx, roomName) {
+    const idx = ctx.roomMoodboards || {};
+    return idx[String(roomName || '').toLowerCase()] || null;
+  }
+  function mbMat(mb, re) {
+    if (!mb) return null;
+    return (mb.materials || []).filter(function (m) { return re.test(String(m.surface || '')); })[0] || null;
+  }
+  function mbSpec(mb, re) {
+    const m = mbMat(mb, re);
+    if (!m) return '';
+    return (m.material || '') + (m.make ? ' (' + m.make + ')' : '');
+  }
+  function mbShade(mb, roles) {
+    if (!mb) return '';
+    const list = (mb.palette || []).filter(function (c) { return (roles || []).indexOf(String(c.role || '')) >= 0; });
+    return list.map(function (c) { return ((c.name || '') + ' ' + (c.hex || '')).trim(); }).join(' / ');
+  }
+
   function sizeFor(name) {
     const n = name.toLowerCase();
     if (n.indexOf('tv') >= 0) return '1800 × 450 × 1800';
@@ -78,9 +110,12 @@ window.PlanexDocketEngine = (function () {
         ['Handle / profile', 'SS / aluminium (per design)', unitRows.length * 4, 'nos', 'Finish to match'],
         ['Locker', 'Ebco / Godrej', 1, 'no', 'Where specified']
       ];
+      const mb = moodFor(ctx, (unitRows[0] && unitRows[0][2]) || '');
+      const joinery = mbSpec(mb, /joinery|shutter|carcass|wood|panel|millwork/i);
+      const shade = mbShade(mb, ['wood', 'primary', 'secondary', 'accent']);
       const finishes = [
-        ['Carcass', q(L.QUALITY_DEFAULTS.carcass, ctx.quality), '—', 'Matt', '18mm ply'],
-        ['Shutter', q(L.QUALITY_DEFAULTS.shutter, ctx.quality), 'To design', '—', 'Edge band 2mm PVC'],
+        ['Carcass', joinery || q(L.QUALITY_DEFAULTS.carcass, ctx.quality), '—', 'Matt', '18mm ply'],
+        ['Shutter', q(L.QUALITY_DEFAULTS.shutter, ctx.quality), shade || 'To design', '—', 'Edge band 2mm PVC'],
         ['Back panel', '6mm ply + laminate', '—', '—', '—']
       ];
       return [
@@ -124,7 +159,9 @@ window.PlanexDocketEngine = (function () {
       const rooms = {};
       list.forEach(function (a) { if (a.room) rooms[a.room] = true; });
       const wardrobes = Object.keys(rooms).map(function (room, i) {
-        return ['FW' + (i + 1), room, '2400 × 2400 × 600', 'Sliding', 'Sliding', q(L.QUALITY_DEFAULTS.shutter, ctx.quality), q(L.QUALITY_DEFAULTS.hardware, ctx.quality)];
+        const mb = moodFor(ctx, room);
+        const joinery = mbSpec(mb, /joinery|shutter|wardrobe|wood|panel/i) || q(L.QUALITY_DEFAULTS.shutter, ctx.quality);
+        return ['FW' + (i + 1), room, '2400 × 2400 × 600', 'Sliding', 'Sliding', joinery, q(L.QUALITY_DEFAULTS.hardware, ctx.quality)];
       });
       const internals = Object.keys(rooms).map(function (room) {
         return [room, 'Section A/B', 'Rods, shelves, drawers', 'Each', 2, '1', 'Loft + locker'];
@@ -192,7 +229,10 @@ window.PlanexDocketEngine = (function () {
         if (n.indexOf('ceiling') >= 0) surface = 'Ceiling';
         if (n.indexOf('enamel') >= 0 || n.indexOf('wood') >= 0) surface = 'Woodwork';
         if (n.indexOf('exterior') >= 0 || n.indexOf('balcony') >= 0) surface = 'Exterior';
-        surfaces.push([a.room || 'Project', surface, a.name, q(L.QUALITY_DEFAULTS.paint, ctx.quality), 'Per fan deck', q(L.QUALITY_DEFAULTS.paintSheen, ctx.quality), '2']);
+        const mb = moodFor(ctx, a.room);
+        const wallMat = mbSpec(mb, /wall|paint|finish|clad/i);
+        const shade = mbShade(mb, ['base', 'neutral', 'primary']);
+        surfaces.push([a.room || 'Project', surface, a.name, wallMat || q(L.QUALITY_DEFAULTS.paint, ctx.quality), shade || 'Per fan deck', q(L.QUALITY_DEFAULTS.paintSheen, ctx.quality), '2']);
       });
       const prep = [
         ['Walls', 'Putty 2 coats, sanding', 'Primer', 'Yes', 'New/plastered surfaces'],
@@ -222,7 +262,9 @@ window.PlanexDocketEngine = (function () {
       });
       const rooms = Object.entries(byRoom).map(function (e) {
         const wet = /bath|kitchen|balcony/i.test(e[0]);
-        return [e[0], Math.round(e[1]), e[1].material || q(L.QUALITY_DEFAULTS.floor, ctx.quality), '600×600', wet ? 'Anti-skid' : 'Straight', 'To layout', '100mm matching', wet ? 'Epoxy grout' : 'Cement-based grout'];
+        const mb = moodFor(ctx, e[0]);
+        const floorMat = mbMat(mb, /floor/i);
+        return [e[0], Math.round(e[1]), e[1].material || (floorMat && floorMat.material) || q(L.QUALITY_DEFAULTS.floor, ctx.quality), '600×600', wet ? 'Anti-skid' : 'Straight', 'To layout', '100mm matching', wet ? 'Epoxy grout' : 'Cement-based grout'];
       });
       const prep = [
         ['Screed', 'Where deviation > 3mm', 'Cement screed'],
@@ -302,7 +344,9 @@ window.PlanexDocketEngine = (function () {
     wall: function (ctx) {
       const list = acts(ctx.scopeDoc, ['Wall Finishes & Cladding']);
       const rows = list.map(function (a) {
-        return [a.room || 'Project', a.name, a.detail || 'As per design', a.unit === 'sqft' ? a.qty : '', 'Adhesive + mechanical where needed', 'SS / aluminium', ''];
+        const mb = moodFor(ctx, a.room);
+        const wallMat = mbSpec(mb, /wall|clad|panel|finish|fluted|wpc/i);
+        return [a.room || 'Project', a.name, wallMat || a.detail || 'As per design', a.unit === 'sqft' ? a.qty : '', 'Adhesive + mechanical where needed', 'SS / aluminium', ''];
       });
       return [{ key: 'surfaces', title: 'Wall Finish Schedule', columns: ['Location', 'Finish', 'Material / Make', 'Area (sqft)', 'Adhesive / Fixing', 'Trims', 'Remarks'], rows: rows }];
     },
@@ -371,12 +415,13 @@ window.PlanexDocketEngine = (function () {
     const quality = ctx.quality || 'standard';
     const projectType = ctx.projectType || 'ready';
     const prov = provisional(ctx.plan || ctx.floorplan);
+    const roomMoodboards = moodIndex(ctx.moodboards, rooms);
 
     const dockets = L.DOCKETS.map(function (def) {
       const builder = BUILD[def.id];
       let sections = [];
       try {
-        sections = builder ? builder({ scopeDoc: scopeDoc, rooms: rooms, quality: quality, projectType: projectType }) : [];
+        sections = builder ? builder({ scopeDoc: scopeDoc, rooms: rooms, quality: quality, projectType: projectType, roomMoodboards: roomMoodboards }) : [];
       } catch (e) {
         sections = [];
       }
@@ -427,6 +472,11 @@ window.PlanexDocketEngine = (function () {
       scopeHash: scopeHash(scopeDoc),
       planRevision: plan ? (plan.id || 'plan') : null,
       planValidated: !prov,
+      paletteByRoom: Object.keys(roomMoodboards).reduce(function (acc, nm) {
+        const mb = roomMoodboards[nm] || {};
+        acc[nm] = (mb.palette || []).map(function (c) { return { role: c.role || '', hex: c.hex || '', name: c.name || '' }; });
+        return acc;
+      }, {}),
       dockets: dockets
     };
   }

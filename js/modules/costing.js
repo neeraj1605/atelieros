@@ -99,6 +99,7 @@ window.PlanexModules.Costing = (function () {
             <div style="display:flex;align-items:center;gap:10px;">
               <h1 class="serif" style="margin:0;">Costing &amp; BOQ</h1>
               <span class="badge badge-info">Firm</span>
+              ${S.stale && S.stale.boq ? '<span class="badge badge-warning">Needs re-price</span>' : ''}
               ${active ? `<span class="badge badge-gold">${esc(active.name)}</span>` : '<span class="badge badge-neutral">All spaces</span>'}
             </div>
             <p>Firm, line-item costing. Quantities come from the confirmed scope.</p>
@@ -166,8 +167,8 @@ window.PlanexModules.Costing = (function () {
     if (refresh) refresh.addEventListener('click', async function () {
       const ok = await window.PlanexUI.confirm('Re-price the scope? This replaces the current BOQ.', { title: 'Re-price scope', danger: true });
       if (!ok) return;
-      const n = store().addScopeToBOQ();
-      window.PlanexUI.toast(n + ' items re-priced.');
+      const n = store().addScopeToBOQ(null, { replace: true });
+      window.PlanexUI.toast(n + ' items re-priced (your qty/rate edits kept).');
       store().setArtifact('cost:summary');
       window.PlanexApp.renderView();
     });

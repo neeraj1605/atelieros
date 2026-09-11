@@ -9,8 +9,11 @@ window.PlanexJourneyRail = (function () {
 
   function progress(S) {
     const designDone = (S.floorplan && S.floorplan.validated) ? 1 : (S.floorplan ? 0.5 : 0);
-    const lookDone = Object.keys(S.moodboards || {}).length ? 1 : 0;
-    const design = Math.round(((designDone + lookDone) / 2) * 100);
+    const rooms = (S.rooms || []).length;
+    const mbCount = Object.keys(S.moodboards || {}).length;
+    const lookDone = rooms ? Math.min(1, mbCount / rooms) : (mbCount ? 1 : 0);
+    const docketsDone = S.docketSet ? 1 : 0;
+    const design = Math.round(((designDone + lookDone + docketsDone) / 3) * 100);
     const procParts = [S.scopeDoc ? 1 : 0, (S.boq && S.boq.length) ? 1 : 0, S.selectedVendorId ? 1 : 0];
     const procurement = Math.round((procParts.reduce(function (a, b) { return a + b; }, 0) / 3) * 100);
     const ms = S.timeline || [];

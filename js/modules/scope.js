@@ -95,7 +95,7 @@ window.PlanexModules.Scope = (function () {
       shown.forEach(function (a) { const k = a.room || 'Project-wide'; if (!groups[k]) groups[k] = []; groups[k].push(a); });
       const body = Object.keys(groups).map(function (room) {
         return `<div class="inc-room">${esc(room)}</div>` + groups[room].map(function (a) {
-          return `<div class="inc-item"><span>${esc(a.name)}</span><span class="faint">${a.qty} ${esc(a.unit)}</span></div>`;
+          return `<div class="inc-item"><span>${esc(a.name)}${(a.make || a.spec || a.detail) ? ' <span class="faint">— ' + esc(a.make || a.spec || a.detail) + '</span>' : ''}</span><span class="faint">${a.qty} ${esc(a.unit)}</span></div>`;
         }).join('');
       }).join('');
       return `
@@ -175,6 +175,7 @@ window.PlanexModules.Scope = (function () {
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm" id="scope-regen">${ic('sparkles')} ${doc ? 'Rebuild' : 'Build scope'}</button>
+            ${doc ? `<button class="btn btn-secondary btn-sm" id="scope-enrich">${ic('wand')} Enrich specs (AI)</button>` : ''}
             ${doc ? `<button class="btn btn-primary btn-sm" id="scope-confirm">${ic('check')} ${confirmed ? 'Go to Costing' : 'Confirm scope'}</button>` : ''}
           </div>
         </div>
@@ -265,6 +266,9 @@ window.PlanexModules.Scope = (function () {
       window.PlanexApp.navigate('costing');
     });
 
+    const enrichBtn = container.querySelector('#scope-enrich');
+    if (enrichBtn) enrichBtn.addEventListener('click', enrichScope);
+
     // matrix toggles
     container.querySelectorAll('[data-mx]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -272,6 +276,7 @@ window.PlanexModules.Scope = (function () {
         const pkg = doc.packages.filter(function (p) { return p.id === parts[0]; })[0];
         if (!pkg) return;
         toggleCell(pkg, parts[1]);
+        if (window.PlanexSpine) window.PlanexSpine.markScopeEdited();
         store().recomputeScope();
         window.PlanexApp.renderView();
       });
@@ -281,10 +286,40 @@ window.PlanexModules.Scope = (function () {
         const pkg = doc.packages.filter(function (p) { return p.id === b.getAttribute('data-mxp'); })[0];
         if (!pkg) return;
         toggleProject(pkg);
+        if (window.PlanexSpine) window.PlanexSpine.markScopeEdited();
         store().recomputeScope();
         window.PlanexApp.renderView();
       });
     });
+  }
+
+  async function enrichScope() {
+    const S = store().state;
+    if (!S.scopeDoc) return;
+    if (!window.PlanexAIClient || !window.PlanexAIClient.isEnabled()) { window.PlanexUI.toast('Enrichment needs the hosted assistant.'); return; }
+    const btn = document.querySelector('#scope-enrich');
+    const prev = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Enriching…'; }
+    try {
+      const res = await window.PlanexAIClient.enrichScope({
+        scopeDoc: S.scopeDoc,
+        projectType: (S.project && S.project.projectType) || 'ready',
+        quality: S.scopeQuality || 'standard',
+        brief: S.context,
+        activeSpaceId: S.activeSpaceId,
+        moodboards: S.moodboards
+      });
+      if (res && res.enrichment) {
+        const n = store().mergeScopeEnrichment(res.enrichment);
+        window.PlanexUI.toast(n + ' specifications added — quantities and rates unchanged.');
+        window.PlanexApp.renderView();
+        return;
+      }
+      window.PlanexUI.toast('No enrichment returned.');
+    } catch (e) {
+      window.PlanexUI.toast('Enrichment failed (' + (e && e.status ? e.status : 'network') + ').');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = prev; }
   }
 
   return { render: render };
