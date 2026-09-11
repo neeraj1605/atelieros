@@ -587,10 +587,24 @@ window.PlanexModules.PlanexAI = (function () {
     return comma >= 0 ? String(dataUrl).slice(comma + 1) : '';
   }
 
-  // Grounding for each turn: the plan, the scope, the focused room and its photos.
+  // Grounding for each turn: the space, plan, scope, focused room and its photos.
   function buildGrounding(text) {
     const g = store().getGroundingState();
     const focus = store().roomImagesFor(text);
+    const active = (store().activeSpace && store().activeSpace()) || null;
+    const focusSpace = focus.room
+      ? (store().state.rooms.filter(function (r) { return r.name === focus.room; })[0] || null)
+      : null;
+    const space = focusSpace || active;
+    g.space = space ? {
+      id: space.id, name: space.name, kind: space.kind,
+      lengthM: space.length, widthM: space.width,
+      brief: space.brief, style: space.style
+    } : null;
+    g.activeSpaceId = store().state.activeSpaceId || 'all';
+    g.theme = store().state.theme || null;
+    const mb = space && store().state.moodboards ? store().state.moodboards[space.id] : null;
+    g.moodboard = mb ? { palette: mb.palette, intent: mb.intent } : null;
     g.focusRoom = focus.room;
     g.roomImages = focus.images.map(function (im) {
       return { room: focus.room, mime: im.mime || 'image/jpeg', data: dataUrlToBase64(im.dataUrl) };

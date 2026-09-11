@@ -116,20 +116,24 @@
   const NAV = [
     { view: 'dashboard', label: 'Home', icon: 'home', step: '' },
     { view: 'project', label: 'Project', icon: 'plan', step: '1' },
-    { view: 'scope', label: 'Scope', icon: 'ruler', step: '2' },
-    { view: 'docket', label: 'Dockets', icon: 'docket', step: '3' },
-    { view: 'costing', label: 'Costing', icon: 'rupee', step: '4' },
-    { view: 'quotation', label: 'Buy', icon: 'rupee', step: '5' },
-    { view: 'execution', label: 'Execute', icon: 'build', step: '6' }
+    { view: 'spaces', label: 'Spaces', icon: 'home', step: '2' },
+    { view: 'scope', label: 'Scope', icon: 'ruler', step: '3' },
+    { view: 'moodboard', label: 'Moodboard', icon: 'sparkles', step: '4' },
+    { view: 'docket', label: 'Dockets', icon: 'docket', step: '5' },
+    { view: 'costing', label: 'Costing', icon: 'rupee', step: '6' },
+    { view: 'quotation', label: 'Buy', icon: 'rupee', step: '7' },
+    { view: 'execution', label: 'Execute', icon: 'build', step: '8' }
   ];
 
-  const LABELS = { dashboard: 'Home', project: 'Project', scope: 'Scope of Work', ai: 'Copilot', docket: 'Design Dockets', costing: 'Costing & BOQ', quotation: 'Buy', execution: 'Execution' };
+  const LABELS = { dashboard: 'Home', project: 'Project', spaces: 'Spaces', scope: 'Scope of Work', moodboard: 'Moodboard', docket: 'Design Dockets', costing: 'Costing & BOQ', quotation: 'Buy', execution: 'Execution' };
 
   function moduleFor(view) {
     const M = window.PlanexModules;
     switch (view) {
       case 'project': return M.Project;
+      case 'spaces': return M.Spaces;
       case 'scope': return M.Scope;
+      case 'moodboard': return M.Moodboard;
       case 'ai': return M.PlanexAI;
       case 'docket': return M.DesignDocket;
       case 'costing': return M.Costing;
@@ -204,6 +208,27 @@
     if (ss) ss.textContent = (stageIdx + 1) + ' / 6';
     const bar = document.getElementById('psc-bar-fill');
     if (bar) bar.style.width = ((stageIdx + 1) / 6 * 100) + '%';
+
+    // Space switcher
+    const sw = document.getElementById('space-switcher');
+    if (sw) {
+      const rooms = window.PlanexStore.state.rooms || [];
+      const cur = window.PlanexStore.state.activeSpaceId || 'all';
+      const opts = ['<option value="all">All spaces</option>'].concat(
+        rooms.map(function (r) {
+          const on = r.id === cur ? ' selected' : '';
+          return '<option value="' + r.id + '"' + on + '>' + String(r.name).replace(/</g, '&lt;') + '</option>';
+        })
+      ).join('');
+      sw.innerHTML = opts;
+      if (!sw.__bound) {
+        sw.__bound = true;
+        sw.addEventListener('change', function () {
+          window.PlanexStore.setActiveSpace(sw.value);
+          renderView();
+        });
+      }
+    }
 
     // delegate nav clicks
     document.querySelectorAll('[data-nav]').forEach(function (el) {

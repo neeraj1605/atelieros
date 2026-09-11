@@ -15,6 +15,7 @@ import { buildScopePrompt, normalizeScope } from './scope.js';
 import { buildRoomsPrompt, normalizeRooms } from './plan.js';
 import { buildDocketPrompt, sanitizeDocketEnrichment } from './docket.js';
 import { buildSheetsPrompt, sanitizeSheetNotes } from './sheets.js';
+import { buildMoodboardPrompt, sanitizeMoodboard } from './moodboard.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -164,6 +165,10 @@ export default {
 
       if (url.pathname === '/plan/sheets' && request.method === 'POST') {
         return await handlePlanSheets(request, env, origin);
+      }
+
+      if (url.pathname === '/moodboard' && request.method === 'POST') {
+        return await handleMoodboard(request, env, origin);
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -577,4 +582,43 @@ async function handlePlanSheets(request, env, origin) {
   await db.addAudit(env, auth.projectId, 'sheets.notes', { sheets: Object.keys(sheets).length });
   await addTokens(env, result.tokens || 0);
   return json({ sheets }, 200, env, origin);
+}
+
+async function handleMoodboard(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  if (!body.space || !body.space.name) return json({ error: 'no_space' }, 400, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const prompt = buildMoodboardPrompt(body);
+  const models = [env.GEMINI_DOCKET_MODEL, env.GEMINI_FLASH_MODEL, env.GEMINI_LITE_MODEL].filter(Boolean);
+
+  let result = null;
+  let lastErr = null;
+  for (const m of models) {
+    try { result = await extractStructured(env, prompt, null, m); break; }
+    catch (e) { lastErr = e; }
+  }
+  if (!result) {
+    const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+    console.error('moodboard_failed', msg);
+    return json({ error: 'moodboard_failed', detail: msg.slice(0, 160) }, 502, env, origin);
+  }
+
+  const moodboard = sanitizeMoodboard(result.parsed);
+  if (!moodboard) {
+    const raw = String(result.raw || '');
+    console.error('moodboard_empty len=' + raw.length + ' head=' + raw.slice(0, 120) + ' tail=' + raw.slice(-160));
+    return json({ error: 'moodboard_empty' }, 422, env, origin);
+  }
+  await db.addAudit(env, auth.projectId, 'moodboard.generate', { space: body.space.name });
+  await addTokens(env, result.tokens || 0);
+  return json({ moodboard }, 200, env, origin);
 }

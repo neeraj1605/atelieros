@@ -24,7 +24,17 @@ window.PlanexStore = (function () {
       currency: 'INR',
       activeView: 'dashboard',
       project: JSON.parse(JSON.stringify(D.project)),
-      rooms: JSON.parse(JSON.stringify(D.rooms)),
+      rooms: JSON.parse(JSON.stringify(D.rooms)).map(function (r) {
+        const kind = (window.PlanexPlanGenerator && window.PlanexPlanGenerator.kindOf) ? window.PlanexPlanGenerator.kindOf(r.name) : 'other';
+        return Object.assign({}, r, {
+          kind: kind,
+          photos: [],
+          style: { directions: [], palette: [] },
+          brief: '',
+          status: 'define',
+          validated: true
+        });
+      }),
       boq: JSON.parse(JSON.stringify(D.boq)),
       vendors: JSON.parse(JSON.stringify(D.vendors)),
       selectedVendorId: null,
@@ -60,7 +70,10 @@ window.PlanexStore = (function () {
       docketSet: null,
       scopeConfirmed: false,
       plan: null,
-      sheetNotes: {}
+      sheetNotes: {},
+      activeSpaceId: 'all',
+      moodboards: {},
+      theme: { directions: ['Warm Minimal', 'Japandi'], palette: [] }
     };
     initial.project.projectType = 'ready';
     initial.contextVersions.push({
@@ -88,6 +101,16 @@ window.PlanexStore = (function () {
           if (state.docketSet === undefined) state.docketSet = null;
           if (typeof state.scopeConfirmed !== 'boolean') state.scopeConfirmed = false;
           if (state.plan === undefined) state.plan = null;
+          if (state.activeSpaceId === undefined) state.activeSpaceId = 'all';
+          if (!state.moodboards || typeof state.moodboards !== 'object') state.moodboards = {};
+          if (!state.theme) state.theme = { directions: [], palette: [] };
+          if (Array.isArray(state.rooms)) state.rooms.forEach(function (r) {
+            if (r.kind === undefined) r.kind = (window.PlanexPlanGenerator && window.PlanexPlanGenerator.kindOf) ? window.PlanexPlanGenerator.kindOf(r.name) : 'other';
+            if (!Array.isArray(r.photos)) r.photos = [];
+            if (!r.style) r.style = { directions: [], palette: [] };
+            if (r.brief === undefined) r.brief = '';
+            if (r.status === undefined) r.status = 'define';
+          });
           if (!state.sheetNotes || typeof state.sheetNotes !== 'object') state.sheetNotes = {};
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
@@ -547,6 +570,46 @@ window.PlanexStore = (function () {
     commit();
   }
 
+  /* ---------- Spaces ---------- */
+  function spaceById(id) {
+    return state.rooms.filter(function (r) { return r.id === id; })[0] || null;
+  }
+  function activeSpace() {
+    return (state.activeSpaceId && state.activeSpaceId !== 'all') ? spaceById(state.activeSpaceId) : null;
+  }
+  function setActiveSpace(id) { state.activeSpaceId = id || 'all'; commit(); }
+  function addSpace(space) {
+    const s = Object.assign({
+      id: 'space-' + Date.now(),
+      name: 'New Space', kind: 'other', length: 0, width: 0, area: '—',
+      color: '#9db8c9', type: 'private',
+      photos: [], style: { directions: [], palette: [] }, brief: '', status: 'define'
+    }, space || {});
+    s.area = (Number(s.length) * Number(s.width)).toFixed(1) + ' m²';
+    state.rooms.push(s);
+    unvalidateFloorplan();
+    commit();
+    return s;
+  }
+  function updateSpace(id, patch) {
+    const s = spaceById(id);
+    if (!s) return null;
+    Object.assign(s, patch || {});
+    if (patch && (patch.length != null || patch.width != null)) {
+      s.area = (Number(s.length) * Number(s.width)).toFixed(1) + ' m²';
+    }
+    commit();
+    return s;
+  }
+  function removeSpace(id) {
+    state.rooms = state.rooms.filter(function (r) { return r.id !== id; });
+    if (state.activeSpaceId === id) state.activeSpaceId = 'all';
+    unvalidateFloorplan();
+    commit();
+  }
+  function setMoodboard(spaceId, mb) { state.moodboards[spaceId] = mb || null; commit(); }
+  function setTheme(patch) { state.theme = Object.assign({ directions: [], palette: [] }, state.theme, patch || {}); commit(); }
+
   /* ---------- Status & journey ---------- */
   function confirmScope() {
     if (!state.scopeDoc) return false;
@@ -706,6 +769,7 @@ window.PlanexStore = (function () {
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ,
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
     setPlan, regeneratePlan, setSheetNotes,
+    spaceById, activeSpace, setActiveSpace, addSpace, updateSpace, removeSpace, setMoodboard, setTheme,
     confirmScope, statusOf, nextAction,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,

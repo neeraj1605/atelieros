@@ -21,7 +21,7 @@ window.PlanexCopilot = (function () {
     fab.className = 'copilot-fab';
     fab.title = 'Planex Copilot';
     fab.setAttribute('aria-label', 'Open Planex Copilot');
-    fab.innerHTML = ic('sparkles');
+    fab.innerHTML = ic('sparkles') + '<span>Planex AI</span>';
     fab.addEventListener('click', toggle);
     document.body.appendChild(fab);
 
