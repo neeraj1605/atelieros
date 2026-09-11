@@ -126,7 +126,7 @@ window.PlanexData = (function () {
   const chatSeed = [
     {
       role: 'ai',
-      text: "Hi Rahul! 👋 I'm Planex AI, your interior design assistant. I'll help you plan this renovation end-to-end.\n\nTo get started, tell me about your space — or upload photos / a site plan and I'll take it from there.",
+      text: "Hello — I'm Planex AI, your interior design consultant with 20 years across Indian homes.\n\nI work through your project space by space: living, kitchen, dining, bedrooms, gallery/sit-out. Then we scope it, cost it, and I produce the drawings your site team builds from.\n\nHere's the journey:\n1. Add your floor plan and validate it\n2. Define each space — dimensions, photos, what you want\n3. Set the look (Moodboard) for each space, with a colour palette\n4. Scope → Costing → Dockets → Execution\n\nTell me which space to start with, or ask me anything — clearances, materials, costs, layouts.",
       time: '09:12'
     }
   ];

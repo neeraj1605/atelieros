@@ -21,10 +21,27 @@ window.PlanexModules.Costing = (function () {
     return Object.values(map).sort(function (a, b) { return b.amount - a.amount; });
   }
 
+  function localFin(boq, budget) {
+    const subtotal = boq.reduce(function (s, b) { return s + (Number(b.qty) || 0) * (Number(b.rate) || 0); }, 0);
+    const gst = Math.round(subtotal * 0.18);
+    const total = subtotal + gst;
+    const bgt = Number(budget) || 0;
+    return {
+      subtotal: subtotal, gst: gst, total: total, budget: bgt,
+      variance: bgt ? bgt - total : 0,
+      withinBudget: total <= bgt,
+      utilization: bgt ? Math.round((total / bgt) * 100) : 0
+    };
+  }
+
   function render(container) {
     const S = store().state;
-    const boq = S.boq || [];
-    const fin = store().getFinancials();
+    const active = store().activeSpace ? store().activeSpace() : null;
+    const allBoq = S.boq || [];
+    const boq = active
+      ? allBoq.filter(function (b) { return b.room === active.name || b.room === active.id; })
+      : allBoq;
+    const fin = active ? localFin(boq, S.project.budget) : store().getFinancials();
     const groups = groupByPackage(boq);
 
     if (!boq.length) {
@@ -36,7 +53,7 @@ window.PlanexModules.Costing = (function () {
           </div>
           <div class="empty anim anim-1">
             <div class="empty-icon">${ic('rupee')}</div>
-            <p>${S.scopeDoc ? 'Your scope is ready. Price it to create the BOQ.' : 'Build the <strong>Scope of Work</strong> first — costing derives from it.'}</p>
+            <p>${active ? 'No priced items for <strong>' + esc(active.name) + '</strong> yet. Price the scope, then filter by space.' : (S.scopeDoc ? 'Your scope is ready. Price it to create the BOQ.' : 'Build the <strong>Scope of Work</strong> first — costing derives from it.')}</p>
             <button class="btn btn-primary" id="cost-price">${ic('plus')} ${S.scopeDoc ? 'Price the scope' : 'Go to Scope'}</button>
           </div>
         </div>`;
@@ -65,9 +82,9 @@ window.PlanexModules.Costing = (function () {
     const lines = boq.map(function (b, i) {
       return `<tr>
         <td data-label="Item"><div class="boq-cat">${esc(b.category)}</div><div style="font-weight:600;">${esc(b.item)}</div></td>
-        <td class="num" data-label="Qty"><input class="scope-qty" type="number" min="0" value="${b.qty}" data-cost-qty="${i}"></td>
+        <td class="num" data-label="Qty"><input class="scope-qty" type="number" min="0" value="${b.qty}" data-cost-qty="${esc(b.id)}"></td>
         <td class="num muted" data-label="Unit">${esc(b.unit)}</td>
-        <td class="num" data-label="Rate"><input class="scope-qty" type="number" min="0" value="${b.rate}" data-cost-rate="${i}"></td>
+        <td class="num" data-label="Rate"><input class="scope-qty" type="number" min="0" value="${b.rate}" data-cost-rate="${esc(b.id)}"></td>
         <td class="num bold" data-label="Amount">${money((Number(b.qty) || 0) * (Number(b.rate) || 0))}</td>
       </tr>`;
     }).join('');
@@ -81,6 +98,7 @@ window.PlanexModules.Costing = (function () {
             <div style="display:flex;align-items:center;gap:10px;">
               <h1 class="serif" style="margin:0;">Costing &amp; BOQ</h1>
               <span class="badge badge-info">Firm</span>
+              ${active ? `<span class="badge badge-gold">${esc(active.name)}</span>` : '<span class="badge badge-neutral">All spaces</span>'}
             </div>
             <p>Firm, line-item costing. Quantities come from the confirmed scope.</p>
           </div>
@@ -129,15 +147,13 @@ window.PlanexModules.Costing = (function () {
   function bind(container) {
     container.querySelectorAll('[data-cost-qty]').forEach(function (inp) {
       inp.addEventListener('change', function () {
-        const i = Number(inp.getAttribute('data-cost-qty'));
-        const b = store().state.boq[i];
+        const b = store().state.boq.filter(function (x) { return x.id === inp.getAttribute('data-cost-qty'); })[0];
         if (b) { b.qty = Math.max(0, Number(inp.value) || 0); store().commit(); window.PlanexApp.renderView(); }
       });
     });
     container.querySelectorAll('[data-cost-rate]').forEach(function (inp) {
       inp.addEventListener('change', function () {
-        const i = Number(inp.getAttribute('data-cost-rate'));
-        const b = store().state.boq[i];
+        const b = store().state.boq.filter(function (x) { return x.id === inp.getAttribute('data-cost-rate'); })[0];
         if (b) { b.rate = Math.max(0, Number(inp.value) || 0); store().commit(); window.PlanexApp.renderView(); }
       });
     });

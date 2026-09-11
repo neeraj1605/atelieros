@@ -128,6 +128,28 @@ window.PlanexModules.Scope = (function () {
   function render(container) {
     const S = store().state;
     const doc = S.scopeDoc;
+    const active = store().activeSpace ? store().activeSpace() : null;
+
+    // Space-scoped view: only this space's packages/activities and its indicative share.
+    let viewDoc = doc;
+    if (doc && active) {
+      const nm = active.name;
+      const pkgs = doc.packages.map(function (p) {
+        return Object.assign({}, p, {
+          activities: p.activities.filter(function (a) { return a.room === nm; })
+        });
+      }).filter(function (p) { return p.activities.length; });
+      const spaceTotal = pkgs.reduce(function (s, p) {
+        return s + p.activities.reduce(function (x, a) { return x + ((a.included !== false) ? (a.qty * a.rate) : 0); }, 0);
+      }, 0);
+      viewDoc = Object.assign({}, doc, {
+        packages: pkgs,
+        area: { rooms: [active], totalSqft: Math.round((Number(active.length) || 0) * (Number(active.width) || 0) * 10.7639) },
+        summary: Object.assign({}, doc.summary, { total: spaceTotal })
+      });
+    }
+    const scoped = !!active;
+
     const types = lib().PROJECT_TYPES;
     const qualities = lib().QUALITY;
     const currentType = (S.project && S.project.projectType) || 'ready';
@@ -170,17 +192,17 @@ window.PlanexModules.Scope = (function () {
           <div style="display:flex;gap:8px;flex-wrap:wrap;">${typeButtons}</div>
         </div>
 
-        ${doc ? `
-          <div class="section-label anim anim-1">What's Included — Room × Package</div>
+        ${viewDoc ? `
+          <div class="section-label anim anim-1">What's Included — ${scoped ? esc(active.name) : 'Room × Package'}</div>
           <div class="card anim anim-1">
             <div class="card-sub" style="margin-bottom:10px;">Tap a cell to include or exclude that package for that room.</div>
-            ${matrix(doc)}
+            ${matrix(viewDoc)}
           </div>
 
-          ${band(doc)}
+          ${band(viewDoc)}
 
           <div class="section-label anim anim-3">Details</div>
-          <div class="anim anim-3">${includedList(doc)}</div>
+          <div class="anim anim-3">${includedList(viewDoc)}</div>
         ` : `
           <div class="empty anim anim-1">
             <div class="empty-icon">${ic('ruler')}</div>

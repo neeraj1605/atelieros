@@ -23,13 +23,14 @@ window.PlanexModules.DesignDocket = (function () {
   function drawingsSection() {
     const S = store().state;
     const plan = S.plan;
+    const act = store().activeSpace ? store().activeSpace() : null;
     const notes = S.sheetNotes[selectedSheet];
     return `
       <div class="section-label anim anim-1">Design Docket — Drawings</div>
       <div class="card anim anim-1">
         <div class="card-head">
           <div>
-            <div class="card-title">Drawing set</div>
+            <div class="card-title">Drawing set ${act ? '<span class="badge badge-gold" style="margin-left:6px;">' + esc(act.name) + '</span>' : ''}</div>
             <div class="card-sub">${plan
               ? plan.rooms.length + ' rooms · ' + Math.round(plan.widthM * 1000) + ' × ' + Math.round(plan.heightM * 1000) + ' mm envelope · indicative setting-out'
               : 'Generate the plan footprint to create the sheets'}</div>
@@ -87,9 +88,11 @@ window.PlanexModules.DesignDocket = (function () {
     return null;
   }
   function layoutRooms(kind) {
-    const rooms = store().state.rooms || [];
+    let rooms = store().state.rooms || [];
+    const sp = store().activeSpace ? store().activeSpace() : null;
+    if (sp) rooms = rooms.filter(function (r) { return r.id === sp.id; });
     if (kind === 'plumbing') {
-      return rooms.filter(function (r) { return /bath|wc|toilet|kitchen|utility|balcony/i.test(r.name); });
+      rooms = rooms.filter(function (r) { return /bath|wc|toilet|kitchen|utility|balcony/i.test(r.name); });
     }
     return rooms;
   }
@@ -124,16 +127,25 @@ window.PlanexModules.DesignDocket = (function () {
   }
 
   function sectionTable(d, s) {
+    const sp = store().activeSpace ? store().activeSpace() : null;
+    const nm = sp ? sp.name.toLowerCase() : '';
+    const indexed = s.rows.map(function (row, i) { return { row: row, i: i }; });
+    const shown = sp
+      ? indexed.filter(function (x) {
+          return x.row.some(function (c) { return String(c).toLowerCase().indexOf(nm) >= 0; });
+        })
+      : indexed;
     const head = s.columns.map(function (c) { return `<th>${esc(c)}</th>`; }).join('');
-    const body = s.rows.length
-      ? s.rows.map(function (row, ri) {
+    const body = shown.length
+      ? shown.map(function (x) {
+          const row = x.row, ri = x.i;
           const cells = s.columns.map(function (col, ci) {
             const val = row[ci] == null ? '' : row[ci];
             return `<td data-label="${esc(col)}"><input class="dcell" value="${esc(val)}" data-dcell="${d.id}:${s.key}:${ri}:${ci}" title="${esc(col)}"></td>`;
           }).join('');
           return `<tr>${cells}</tr>`;
         }).join('')
-      : `<tr><td colspan="${s.columns.length}" class="muted">No rows — generate the scope first.</td></tr>`;
+      : `<tr><td colspan="${s.columns.length}" class="muted">${sp ? 'No rows for ' + esc(sp.name) + ' — generate the scope or switch to All spaces.' : 'No rows — generate the scope first.'}</td></tr>`;
     return `
       <div class="docket-section">
         <div class="docket-section-title">${esc(s.title)}</div>
