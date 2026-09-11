@@ -253,12 +253,14 @@ window.PlanexModules.Scope = (function () {
       }
       const r = store().regenerateScope();
       if (r) window.PlanexUI.toast('Scope built: ' + r.packages.length + ' work packages.');
+      store().setArtifact('scope:' + (store().state.activeSpaceId || 'all'));
       window.PlanexApp.renderView();
     });
 
     const confirmBtn = container.querySelector('#scope-confirm');
     if (confirmBtn) confirmBtn.addEventListener('click', function () {
       store().confirmScope();
+      store().setArtifact('scope:' + (store().state.activeSpaceId || 'all'));
       window.PlanexUI.toast('Scope confirmed. Price it in Costing.');
       window.PlanexApp.navigate('costing');
     });

@@ -62,6 +62,7 @@ window.PlanexModules.Costing = (function () {
         if (!store().state.scopeDoc) { window.PlanexApp.navigate('scope'); return; }
         const n = store().addScopeToBOQ();
         window.PlanexUI.toast(n + ' scope items priced into the BOQ.');
+        store().setArtifact('cost:summary');
         window.PlanexApp.renderView();
       });
       return;
@@ -167,6 +168,7 @@ window.PlanexModules.Costing = (function () {
       if (!ok) return;
       const n = store().addScopeToBOQ();
       window.PlanexUI.toast(n + ' items re-priced.');
+      store().setArtifact('cost:summary');
       window.PlanexApp.renderView();
     });
   }

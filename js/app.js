@@ -146,24 +146,56 @@
     }
   }
 
+  const VIEW_TO_UI = {
+    dashboard: { act: 'design', designSub: 'spaces' },
+    project: { act: 'design', designSub: 'spaces' },
+    spaces: { act: 'design', designSub: 'spaces' },
+    moodboard: { act: 'design', designSub: 'moodboard' },
+    docket: { act: 'design', designSub: 'docket' },
+    scope: { act: 'procurement', procurementSub: 'scope' },
+    costing: { act: 'procurement', procurementSub: 'costing' },
+    quotation: { act: 'procurement', procurementSub: 'quotation' },
+    execution: { act: 'execution' },
+    design: { act: 'design' },
+    procurement: { act: 'procurement' }
+  };
+
   function renderView() {
-    const view = window.PlanexStore.state.activeView;
+    const S = window.PlanexStore.state;
     const el = document.getElementById('app-view');
     if (!el) return;
     el.innerHTML = '';
-    const mod = moduleFor(view);
-    if (mod && mod.render) mod.render(el);
+    const M = window.PlanexModules;
+    const seen = !!(S.ui && S.ui.seenHowItWorks);
+
+    if (!seen) {
+      M.HowItWorks.render(el);
+    } else if (S.ui && S.ui.view === 'workspace') {
+      const act = S.ui.act || 'design';
+      const mod = act === 'procurement' ? M.Procurement : act === 'execution' ? M.Execution : M.Design;
+      if (mod && mod.render) mod.render(el);
+    } else {
+      M.PlanexAI.render(el);
+    }
+
     el.scrollTop = 0;
     window.scrollTo({ top: 0 });
     updateChrome();
-    // Keep the assistant's context chips in step with the current act/space.
-    if (window.PlanexModules && window.PlanexModules.PlanexAI && window.PlanexModules.PlanexAI.refreshChips) {
-      window.PlanexModules.PlanexAI.refreshChips();
-    }
+    if (M.PlanexAI && M.PlanexAI.refreshChips) M.PlanexAI.refreshChips();
   }
 
   function navigate(view) {
-    if (view === 'ai') { if (window.PlanexCopilot) window.PlanexCopilot.open(); return; }
+    const S = window.PlanexStore.state;
+    if (view === 'ai') { window.PlanexStore.setUI({ view: 'copilot' }); renderView(); return; }
+    if (VIEW_TO_UI[view]) {
+      const patch = Object.assign({ view: 'workspace' }, VIEW_TO_UI[view]);
+      window.PlanexStore.setUI(patch);
+      S.activeView = view;
+      location.hash = view;
+      renderView();
+      closeSidebar();
+      return;
+    }
     window.PlanexStore.setView(view);
     location.hash = view;
     renderView();
@@ -178,19 +210,30 @@
     const crumb = document.getElementById('crumb-current');
     if (crumb) crumb.textContent = LABELS[S.activeView] || 'Dashboard';
 
-    // sidebar nav
+    // left journey rail
     const nav = document.getElementById('sidebar-nav');
-    if (nav) {
-      nav.innerHTML = NAV.map(function (item) {
-        const active = item.view === S.activeView ? 'active' : '';
-        return '<button class="nav-link ' + active + '" data-nav="' + item.view + '">' +
-          ic(item.icon) + '<span>' + item.label + '</span>' +
-          (item.step ? '<span class="nav-step">' + item.step + '</span>' : '') +
-          '</button>';
-      }).join('');
-    }
+    if (nav && window.PlanexJourneyRail) window.PlanexJourneyRail.render(nav);
 
-    // bottom nav
+    // topbar plan badge
+    const pb = document.getElementById('plan-badge');
+    if (pb) {
+      const plan = (S.project && S.project.plan) || 'ai';
+      pb.textContent = plan === 'remote' ? 'Plan B · AI + Remote' : plan === 'onground' ? 'Plan C · On-ground' : 'Plan A · AI-assisted';
+    }
+    // workspace toggle label
+    const wt = document.getElementById('workspace-toggle');
+    if (wt) wt.textContent = (S.ui && S.ui.view === 'workspace') ? 'Back to Copilot' : 'Workspace';
+    // journey progress line
+    const jf = document.getElementById('journey-line-fill');
+    if (jf && window.PlanexJourneyRail) {
+      const p = window.PlanexJourneyRail.progress(S);
+      jf.style.width = Math.round((p.design + p.procurement + p.execution) / 3) + '%';
+    }
+    // live artifact rail
+    const ar = document.getElementById('artifact-rail');
+    if (ar && window.PlanexArtifactRail) window.PlanexArtifactRail.render(ar);
+
+    // bottom nav (acts)
     const bn = document.getElementById('bottom-nav');
     if (bn) {
       bn.innerHTML = '<div class="bottom-nav-inner">' + NAV.map(function (item) {
@@ -297,6 +340,14 @@
       const next = store.state.theme === 'dark' ? 'light' : 'dark';
       store.setTheme(next);
       applyTheme(next);
+      renderView();
+    });
+
+    // workspace / copilot surface toggle
+    const wt = document.getElementById('workspace-toggle');
+    if (wt) wt.addEventListener('click', function () {
+      const cur = (store.state.ui && store.state.ui.view) || 'copilot';
+      store.setUI({ view: cur === 'workspace' ? 'copilot' : 'workspace' });
       renderView();
     });
 

@@ -179,6 +179,7 @@ window.PlanexModules.Moodboard = (function () {
       if (res && res.moodboard) {
         store().setMoodboard(s.id, res.moodboard);
         store().updateSpace(s.id, { status: 'look' });
+        store().setArtifact('moodboard:' + s.id);
         window.PlanexUI.toast('Moodboard ready for ' + s.name + '.');
         window.PlanexApp.renderView();
         return;

@@ -77,7 +77,7 @@ window.PlanexStore = (function () {
     };
     initial.project.projectType = 'ready';
     initial.project.plan = 'ai';
-    initial.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false };
+    initial.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false, view: 'copilot', artifactRef: null, leftRailCollapsed: false };
     initial.contextVersions.push({
       version: 1,
       source: 'seed',
@@ -587,6 +587,8 @@ window.PlanexStore = (function () {
     commit();
   }
   function markHowItWorksSeen() { setUI({ seenHowItWorks: true }); }
+  function setArtifact(ref) { state.ui.artifactRef = ref || null; commit(); }
+  function setSurface(view) { state.ui.view = view === 'workspace' ? 'workspace' : 'copilot'; commit(); }
 
   /* ---------- Spaces ---------- */
   function spaceById(id) {
@@ -788,7 +790,7 @@ window.PlanexStore = (function () {
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
     setPlan, regeneratePlan, setSheetNotes,
     spaceById, activeSpace, setActiveSpace, addSpace, updateSpace, removeSpace, setMoodboard, setTheme,
-    setServicePlan, setUI, markHowItWorksSeen,
+    setServicePlan, setUI, markHowItWorksSeen, setArtifact, setSurface,
     confirmScope, statusOf, nextAction,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,

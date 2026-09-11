@@ -307,8 +307,20 @@ window.PlanexModules.PlanexAI = (function () {
         attachments: attachments,
         state: buildGrounding(text),
         onDelta: (t) => { prose += t; setBubbleText(bubble, prose); },
-        onPatch: (d) => { patched = true; store().applyContextPatch(d.patch, d.version); },
-        onProposals: (list) => { proposals = list || []; },
+        onPatch: (d) => {
+          patched = true;
+          store().applyContextPatch(d.patch, d.version);
+          if (d.patch && d.patch.style) {
+            const sid = store().state.activeSpaceId;
+            if (sid && sid !== 'all') store().setArtifact('moodboard:' + sid);
+          }
+        },
+        onProposals: (list) => {
+          proposals = list || [];
+          if (proposals.some(function (p) { return p.type === 'boq.add' || p.type === 'room.upsert'; })) {
+            store().setArtifact('cost:summary');
+          }
+        },
         onImagePending: () => {
           const base = prose || '';
           setBubbleText(bubble, base + (base ? '\n\n' : '') + '🎨 Working on a render — this can take up to a minute…');
