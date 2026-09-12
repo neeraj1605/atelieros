@@ -74,14 +74,17 @@ window.PlanexStore = (function () {
       activeSpaceId: 'all',
       moodboards: {},
       theme: { directions: ['Warm Minimal', 'Japandi'], palette: [] },
+      scopeSheets: {},
+      scopeSheetQuotes: {},
       derived: {
         plan: { inputHash: '', builtAt: '' },
         scope: { inputHash: '', builtAt: '', edited: false },
         boq: { scopeHash: '', builtAt: '' },
         dockets: { docketHash: '', builtAt: '' },
-        execution: { docketHash: '', builtAt: '' }
+        execution: { docketHash: '', builtAt: '' },
+        scopeSheets: { inputHash: '', builtAt: '' }
       },
-      stale: { plan: false, scope: false, boq: false, dockets: false, execution: false }
+      stale: { plan: false, scope: false, boq: false, dockets: false, execution: false, scopeSheets: false }
     };
     initial.project.projectType = 'ready';
     initial.project.plan = 'ai';
@@ -119,15 +122,18 @@ window.PlanexStore = (function () {
             scope: { inputHash: '', builtAt: '', edited: false },
             boq: { scopeHash: '', builtAt: '' },
             dockets: { docketHash: '', builtAt: '' },
-            execution: { docketHash: '', builtAt: '' }
+            execution: { docketHash: '', builtAt: '' },
+            scopeSheets: { inputHash: '', builtAt: '' }
           };
-          ['plan', 'scope', 'boq', 'dockets', 'execution'].forEach(function (k) {
+          ['plan', 'scope', 'boq', 'dockets', 'execution', 'scopeSheets'].forEach(function (k) {
             if (!state.derived[k]) state.derived[k] = {};
           });
           if (!state.stale || typeof state.stale !== 'object') state.stale = {};
-          ['plan', 'scope', 'boq', 'dockets', 'execution'].forEach(function (k) {
+          ['plan', 'scope', 'boq', 'dockets', 'execution', 'scopeSheets'].forEach(function (k) {
             if (typeof state.stale[k] !== 'boolean') state.stale[k] = false;
           });
+          if (!state.scopeSheets || typeof state.scopeSheets !== 'object') state.scopeSheets = {};
+          if (!state.scopeSheetQuotes || typeof state.scopeSheetQuotes !== 'object') state.scopeSheetQuotes = {};
           // Migrate legacy per-space photos into the canonical roomImages map.
           if (Array.isArray(state.rooms)) state.rooms.forEach(function (r) {
             if (Array.isArray(r.photos) && r.photos.length) {
@@ -769,6 +775,15 @@ window.PlanexStore = (function () {
       if (!state.docketSet) return 'draft';
       return stale.execution ? 'stale' : 'tracking';
     }
+    if (artifact === 'scopesheets') {
+      const sheets = state.scopeSheets || {};
+      const ids = Object.keys(sheets);
+      if (!ids.length) return 'draft';
+      if (stale.scopeSheets) return 'stale';
+      if (ids.some(function (id) { return sheets[id].status === 'finalized'; })) return 'finalized';
+      if (ids.some(function (id) { return sheets[id].status === 'issued'; })) return 'issued';
+      return ids.every(function (id) { return sheets[id].audit && sheets[id].audit.passed; }) ? 'ready' : 'draft';
+    }
     return 'draft';
   }
 
@@ -783,6 +798,12 @@ window.PlanexStore = (function () {
     if (stale.boq) return { label: 'Re-price the scope', view: 'costing' };
     if (!state.docketSet) return { label: 'Generate dockets', view: 'docket' };
     if (stale.dockets) return { label: 'Refresh dockets', view: 'docket' };
+    if (!Object.keys(state.scopeSheets || {}).length) return { label: 'Issue Scope Sheets', view: 'sheets' };
+    if (stale.scopeSheets) return { label: 'Update Scope Sheets', view: 'sheets' };
+    const sheets = state.scopeSheets || {};
+    if (!Object.keys(sheets).some(function (id) { return sheets[id].status === 'issued' || sheets[id].status === 'finalized'; })) {
+      return { label: 'Issue Scope Sheets to vendors', view: 'sheets' };
+    }
     if (!state.selectedVendorId) return { label: 'Send RFQ to vendors', view: 'quotation' };
     return { label: 'Track execution', view: 'execution' };
   }
@@ -888,6 +909,235 @@ window.PlanexStore = (function () {
     return n;
   }
 
+  /* ---------- Scope Sheets (vendor-facing RFQ documents) ---------- */
+  function sheetInputHash() {
+    return window.PlanexScopeSheetEngine
+      ? window.PlanexScopeSheetEngine.sheetInputHash({ scopeDoc: state.scopeDoc, docketSet: state.docketSet, quality: state.scopeQuality })
+      : '';
+  }
+
+  function regenerateScopeSheets() {
+    if (!window.PlanexScopeSheetEngine) return 0;
+    const built = window.PlanexScopeSheetEngine.buildAll({
+      scopeDoc: state.scopeDoc, docketSet: state.docketSet, plan: state.plan,
+      floorplan: state.floorplan, moodboards: state.moodboards, rooms: state.rooms,
+      quality: state.scopeQuality, projectType: (state.project && state.project.projectType) || 'ready',
+      activeSpaceId: state.activeSpaceId
+    });
+    if (!state.scopeSheets) state.scopeSheets = {};
+    let n = 0;
+    Object.keys(built).forEach(function (pid) {
+      const fresh = built[pid];
+      const old = state.scopeSheets[pid];
+      if (old) {
+        fresh.revision = old.revision || 0;
+        fresh.status = old.status || 'draft';
+        fresh.revisions = old.revisions || [];
+        fresh.ai = old.ai || null;
+        // preserve user edits and enrichment per line id
+        const map = {};
+        (old.lines || []).forEach(function (l) { map[l.id] = l; });
+        fresh.lines.forEach(function (l) {
+          const o = map[l.id];
+          if (!o) return;
+          if (o.edited) {
+            ['spec', 'make', 'size', 'finish', 'basis', 'method', 'drawingRef', 'remarks'].forEach(function (k) {
+              if (o[k] != null && o[k] !== '') l[k] = o[k];
+            });
+            l.edited = true;
+          }
+          if (o.enriched) l.enriched = true;
+        });
+        // preserve assumption answers by label
+        const amap = {};
+        (old.assumptions || []).forEach(function (a) { amap[a.label] = a.answer; });
+        (fresh.assumptions || []).forEach(function (a) { if (amap[a.label]) a.answer = amap[a.label]; });
+        if (old.inclusions && old.inclusions.length) fresh.inclusions = old.inclusions;
+        if (old.exclusions && old.exclusions.length) fresh.exclusions = old.exclusions;
+      }
+      fresh.audit = window.PlanexScopeSheetEngine.audit(fresh);
+      state.scopeSheets[pid] = fresh;
+      n++;
+    });
+    if (state.derived) state.derived.scopeSheets = { inputHash: sheetInputHash(), builtAt: new Date().toISOString() };
+    if (state.stale) state.stale.scopeSheets = false;
+    pushAudit('scope_sheets.generate', { sheets: n });
+    touch();
+    commit();
+    return n;
+  }
+
+  function sheetAudit(packageId) {
+    const s = state.scopeSheets[packageId];
+    if (!s || !window.PlanexScopeSheetEngine) return null;
+    s.audit = window.PlanexScopeSheetEngine.audit(s);
+    return s.audit;
+  }
+
+  function updateSheetLine(packageId, lineId, patch) {
+    const s = state.scopeSheets[packageId];
+    if (!s) return null;
+    const line = (s.lines || []).filter(function (l) { return l.id === lineId; })[0];
+    if (!line) return null;
+    Object.assign(line, patch || {});
+    line.edited = true;
+    s.audit = window.PlanexScopeSheetEngine ? window.PlanexScopeSheetEngine.audit(s) : s.audit;
+    s.updatedAt = new Date().toISOString();
+    commit();
+    return line;
+  }
+
+  function setSheetSection(packageId, section, value) {
+    const s = state.scopeSheets[packageId];
+    if (!s) return null;
+    s[section] = value;
+    s.updatedAt = new Date().toISOString();
+    if (window.PlanexScopeSheetEngine) s.audit = window.PlanexScopeSheetEngine.audit(s);
+    commit();
+    return s;
+  }
+
+  function setSheetAssumption(packageId, assumptionId, answer) {
+    const s = state.scopeSheets[packageId];
+    if (!s) return null;
+    const a = (s.assumptions || []).filter(function (x) { return x.id === assumptionId; })[0];
+    if (a) a.answer = answer || '';
+    if (window.PlanexScopeSheetEngine) s.audit = window.PlanexScopeSheetEngine.audit(s);
+    commit();
+    return s;
+  }
+
+  function setSheetOverride(packageId, reason) {
+    const s = state.scopeSheets[packageId];
+    if (!s) return null;
+    s.audit = s.audit || {};
+    s.audit.override = reason ? { reason: String(reason).slice(0, 300), at: new Date().toISOString() } : null;
+    pushAudit('scope_sheet.override', { package: packageId });
+    commit();
+    return s;
+  }
+
+  function mergeSheetEnrichment(packageId, enrichment, model) {
+    const s = state.scopeSheets[packageId];
+    if (!s || !enrichment) return 0;
+    let n = 0;
+    const by = enrichment.byLineId || {};
+    s.lines.forEach(function (l) {
+      const e = by[l.id];
+      if (!e) return;
+      ['spec', 'make', 'size', 'finish', 'method'].forEach(function (k) {
+        if (e[k] && !(l.edited && l[k])) l[k] = e[k];
+      });
+      l.enriched = true; n++;
+    });
+    if (enrichment.inclusions && enrichment.inclusions.length) s.inclusions = enrichment.inclusions;
+    if (enrichment.exclusions && enrichment.exclusions.length) s.exclusions = enrichment.exclusions;
+    const labels = (s.assumptions || []).map(function (a) { return String(a.label).toLowerCase(); });
+    (enrichment.assumptions || []).forEach(function (label) {
+      if (!label || labels.indexOf(String(label).toLowerCase()) >= 0) return;
+      s.assumptions.push({ id: 'a' + (s.assumptions.length + 1), label: label, answer: '', required: true });
+    });
+    s.ai = { enrichedAt: new Date().toISOString(), model: model || 'gemini', notes: (enrichment.noAssumptionNotes || []).join(' ') };
+    if (window.PlanexScopeSheetEngine) s.audit = window.PlanexScopeSheetEngine.audit(s);
+    pushAudit('scope_sheet.enrich', { package: packageId, lines: n });
+    commit();
+    return n;
+  }
+
+  function canIssueSheet(packageId) {
+    const s = state.scopeSheets[packageId];
+    if (!s || !window.PlanexScopeSheetEngine) return false;
+    return window.PlanexScopeSheetEngine.canIssue(s);
+  }
+
+  function issueScopeSheet(packageId, opts) {
+    const s = state.scopeSheets[packageId];
+    if (!s || !window.PlanexScopeSheetEngine) return null;
+    if (!window.PlanexScopeSheetEngine.canIssue(s)) return { error: 'audit_blocked', audit: s.audit };
+    opts = opts || {};
+    const nextRev = (s.revision || 0) + 1;
+    const frozen = window.PlanexScopeSheetEngine.freeze(Object.assign({}, s, { revision: nextRev }), {
+      planRevision: (state.floorplan && state.floorplan.id) || null,
+      planDate: state.floorplan && state.floorplan.uploadedAt
+    });
+    s.revision = nextRev;
+    s.status = 'issued';
+    s.revisions = (s.revisions || []).concat([frozen]);
+    const vendors = (opts.vendorIds || []).map(function (id) {
+      const v = state.vendors.filter(function (x) { return x.id === id; })[0];
+      return v ? { id: v.id, name: v.name } : null;
+    }).filter(Boolean);
+    if (!state.scopeSheetQuotes[packageId]) state.scopeSheetQuotes[packageId] = [];
+    vendors.forEach(function (v) {
+      state.scopeSheetQuotes[packageId].push({
+        id: 'q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+        vendorId: v.id, vendorName: v.name, status: 'issued',
+        againstRevision: nextRev, issuedAt: new Date().toISOString(),
+        receivedAt: null, finalizedAt: null, amount: 0, currency: state.currency || 'INR',
+        lineItems: [], coverage: null, compliance: null,
+        file: null, source: 'manual', analysis: null
+      });
+    });
+    pushAudit('scope_sheet.issue', { package: packageId, revision: nextRev, vendors: vendors.length });
+    commit();
+    return s;
+  }
+
+  function addSheetQuote(packageId, quote) {
+    if (!state.scopeSheetQuotes[packageId]) state.scopeSheetQuotes[packageId] = [];
+    state.scopeSheetQuotes[packageId].push(Object.assign({
+      id: 'q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      status: 'received', againstRevision: (state.scopeSheets[packageId] || {}).revision || 0,
+      receivedAt: new Date().toISOString(), amount: 0, lineItems: [], source: 'manual'
+    }, quote || {}));
+    commit();
+    return state.scopeSheetQuotes[packageId];
+  }
+
+  function updateSheetQuote(packageId, quoteId, patch) {
+    const q = (state.scopeSheetQuotes[packageId] || []).filter(function (x) { return x.id === quoteId; })[0];
+    if (!q) return null;
+    Object.assign(q, patch || {});
+    commit();
+    return q;
+  }
+
+  function mergeQuoteAnalysis(packageId, quoteId, analysis, model) {
+    const q = (state.scopeSheetQuotes[packageId] || []).filter(function (x) { return x.id === quoteId; })[0];
+    if (!q || !analysis) return null;
+    q.lineItems = analysis.lineItems || [];
+    q.coverage = analysis.coverage || null;
+    q.compliance = analysis.compliance || null;
+    q.amount = analysis.total || q.amount || 0;
+    q.currency = analysis.currency || q.currency;
+    if (analysis.vendorName && !q.vendorName) q.vendorName = analysis.vendorName;
+    q.analysis = { summary: analysis.summary || '', model: model || 'gemini', at: new Date().toISOString() };
+    q.status = 'analyzed';
+    pushAudit('quote.analyze', { package: packageId, lines: (analysis.lineItems || []).length });
+    commit();
+    return q;
+  }
+
+  function setSheetQuoteStatus(packageId, quoteId, status) {
+    const q = (state.scopeSheetQuotes[packageId] || []).filter(function (x) { return x.id === quoteId; })[0];
+    if (!q) return null;
+    q.status = status;
+    if (status === 'finalized') {
+      q.finalizedAt = new Date().toISOString();
+      const s = state.scopeSheets[packageId];
+      if (s) s.status = 'finalized';
+    }
+    pushAudit('scope_sheet.quote', { package: packageId, status: status });
+    commit();
+    return q;
+  }
+
+  function deleteSheetQuote(packageId, quoteId) {
+    if (!state.scopeSheetQuotes[packageId]) return;
+    state.scopeSheetQuotes[packageId] = state.scopeSheetQuotes[packageId].filter(function (x) { return x.id !== quoteId; });
+    commit();
+  }
+
   /* Apply a proposal the user explicitly confirmed. */
   function applyProposal(proposal) {
     if (!proposal || !proposal.type) return false;
@@ -986,6 +1236,18 @@ window.PlanexStore = (function () {
         phases: (state.timeline || []).map(function (p) { return { name: p.name, progress: p.progress, status: p.status }; }),
         openQc: (state.qc || []).filter(function (q) { return q.status !== 'Resolved'; }).length
       },
+      scopeSheets: Object.keys(state.scopeSheets || {}).map(function (pid) {
+        const s = state.scopeSheets[pid];
+        return {
+          package: pid, trade: s.trade, status: s.status, revision: s.revision,
+          lines: (s.lines || []).length,
+          auditPassed: !!(s.audit && s.audit.passed),
+          blocking: s.audit ? s.audit.blocking : 0,
+          quotes: ((state.scopeSheetQuotes || {})[pid] || []).map(function (q) {
+            return { vendor: q.vendorName, status: q.status, total: q.amount, againstRevision: q.againstRevision };
+          })
+        };
+      }),
       staleness: state.stale || {}
     };
   }
@@ -1017,6 +1279,9 @@ window.PlanexStore = (function () {
     adoptServerContext, applyContextPatch, revertContext, applyProposal, getGroundingState, pushAudit, addRender,
     setProjectType, setScopeQuality, setScopeDoc, regenerateScope, recomputeScope, addScopeToBOQ, mergeScopeEnrichment, scopeBoqKey,
     setDocketSet, updateDocketCell, mergeDocketEnrichment,
+    regenerateScopeSheets, sheetAudit, updateSheetLine, setSheetSection, setSheetAssumption, setSheetOverride,
+    mergeSheetEnrichment, canIssueSheet, issueScopeSheet, addSheetQuote, updateSheetQuote, mergeQuoteAnalysis,
+    setSheetQuoteStatus, deleteSheetQuote,
     setPlan, regeneratePlan, setSheetNotes,
     spaceById, activeSpace, setActiveSpace, addSpace, updateSpace, removeSpace, setMoodboard, setTheme,
     addSpacePhoto, applyRoomsDiff,

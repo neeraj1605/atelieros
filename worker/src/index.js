@@ -17,6 +17,8 @@ import { buildRoomsPrompt, normalizeRooms } from './plan.js';
 import { buildDocketPrompt, sanitizeDocketEnrichment } from './docket.js';
 import { buildSheetsPrompt, sanitizeSheetNotes } from './sheets.js';
 import { buildMoodboardPrompt, sanitizeMoodboard } from './moodboard.js';
+import { buildScopeSheetEnrichPrompt, sanitizeScopeSheetEnrichment } from './scope-sheet.js';
+import { buildQuoteAnalyzePrompt, sanitizeQuoteAnalysis } from './quote-analyze.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_ATTACHMENTS = 4;
@@ -174,6 +176,14 @@ export default {
 
       if (url.pathname === '/moodboard' && request.method === 'POST') {
         return await handleMoodboard(request, env, origin);
+      }
+
+      if (url.pathname === '/scope-sheet/enrich' && request.method === 'POST') {
+        return await handleScopeSheetEnrich(request, env, origin);
+      }
+
+      if (url.pathname === '/quote/analyze' && request.method === 'POST') {
+        return await handleQuoteAnalyze(request, env, origin);
       }
 
       if (url.pathname === '/chat' && request.method === 'POST') {
@@ -665,4 +675,90 @@ async function handleMoodboard(request, env, origin) {
   await db.addAudit(env, auth.projectId, 'moodboard.generate', { space: body.space.name });
   await addTokens(env, result.tokens || 0);
   return json({ moodboard }, 200, env, origin);
+}
+
+async function handleScopeSheetEnrich(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  const sheet = body.sheet;
+  if (!sheet || !Array.isArray(sheet.lines) || !sheet.lines.length) return json({ error: 'no_sheet' }, 400, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const prompt = buildScopeSheetEnrichPrompt(body);
+  const models = [env.GEMINI_DOCKET_MODEL, env.GEMINI_FLASH_MODEL, env.GEMINI_LITE_MODEL].filter(Boolean);
+
+  let result = null;
+  let lastErr = null;
+  for (const m of models) {
+    try { result = await extractStructured(env, prompt, null, m); break; }
+    catch (e) { lastErr = e; }
+  }
+  if (!result) {
+    const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+    console.error('scope_sheet_enrich_failed', msg);
+    return json({ error: 'scope_sheet_enrich_failed', detail: msg.slice(0, 160) }, 502, env, origin);
+  }
+
+  const enrichment = sanitizeScopeSheetEnrichment(result.parsed, sheet);
+  if (!enrichment) {
+    console.error('scope_sheet_enrich_empty', String(result.raw || '').slice(0, 400));
+    return json({ error: 'scope_sheet_enrich_empty' }, 422, env, origin);
+  }
+  await db.addAudit(env, auth.projectId, 'scope_sheet.enrich', { package: sheet.packageId, lines: Object.keys(enrichment.byLineId).length });
+  await addTokens(env, result.tokens || 0);
+  return json({ enrichment }, 200, env, origin);
+}
+
+async function handleQuoteAnalyze(request, env, origin) {
+  const auth = await requireSession(env, request);
+  if (!auth.ok) return json({ error: auth.error }, auth.status, env, origin);
+
+  const body = await readJSON(request);
+  const sheet = body.sheet;
+  if (!sheet || !Array.isArray(sheet.lines) || !sheet.lines.length) return json({ error: 'no_sheet' }, 400, env, origin);
+  if (!env.GEMINI_API_KEY) return json({ error: 'model_not_configured' }, 503, env, origin);
+
+  const file = body.file;
+  if (!file || typeof file.data !== 'string' || !file.mime) return json({ error: 'no_file' }, 400, env, origin);
+  const mime = String(file.mime).slice(0, 80);
+  if (!/^application\/pdf$/.test(mime) && !/^image\//.test(mime)) return json({ error: 'unsupported_file' }, 415, env, origin);
+  const maxBytes = Number(env.MAX_ATTACHMENT_BYTES || 4500000);
+  const bytes = Math.floor((file.data.length * 3) / 4);
+  if (bytes > maxBytes) return json({ error: 'file_too_large' }, 413, env, origin);
+
+  const rate = await checkSessionRate(env, auth.projectId);
+  if (!rate.ok) return json({ error: 'rate_limited', limit: rate.limit }, 429, env, origin);
+  const daily = await checkAndIncrementDaily(env);
+  if (!daily.ok) return json({ error: 'daily_cap', cap: daily.cap }, 429, env, origin);
+
+  const prompt = buildQuoteAnalyzePrompt(body);
+  const models = [env.GEMINI_SCOPE_MODEL, env.GEMINI_FLASH_MODEL, env.GEMINI_LITE_MODEL].filter(Boolean);
+
+  let result = null;
+  let lastErr = null;
+  for (const m of models) {
+    try { result = await extractStructured(env, prompt, { mime: mime, data: file.data }, m); break; }
+    catch (e) { lastErr = e; }
+  }
+  if (!result) {
+    const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+    console.error('quote_analyze_failed', msg);
+    return json({ error: 'quote_analyze_failed', detail: msg.slice(0, 160) }, 502, env, origin);
+  }
+
+  const analysis = sanitizeQuoteAnalysis(result.parsed, sheet);
+  if (!analysis) {
+    console.error('quote_analyze_empty', String(result.raw || '').slice(0, 400));
+    return json({ error: 'quote_analyze_empty' }, 422, env, origin);
+  }
+  await db.addAudit(env, auth.projectId, 'quote.analyze', { package: sheet.packageId, lines: analysis.lineItems.length });
+  await addTokens(env, result.tokens || 0);
+  return json({ analysis }, 200, env, origin);
 }

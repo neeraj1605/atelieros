@@ -124,7 +124,7 @@
   const LABELS = {
     dashboard: 'Home', how: 'How it works', design: 'Design', procurement: 'Procurement',
     execution: 'Execution', project: 'Project', spaces: 'Spaces', scope: 'Scope of Work',
-    moodboard: 'Moodboard', docket: 'Design Dockets', costing: 'Costing & BOQ', quotation: 'Buy'
+    sheets: 'Scope Sheets', moodboard: 'Moodboard', docket: 'Design Dockets', costing: 'Costing & BOQ', quotation: 'Buy'
   };
 
   function moduleFor(view) {
@@ -136,6 +136,7 @@
       case 'project': return M.Project;
       case 'spaces': return M.Spaces;
       case 'scope': return M.Scope;
+      case 'sheets': return M.ScopeSheets;
       case 'moodboard': return M.Moodboard;
       case 'ai': return M.PlanexAI;
       case 'docket': return M.DesignDocket;
@@ -153,6 +154,7 @@
     moodboard: { act: 'design', designSub: 'moodboard' },
     docket: { act: 'design', designSub: 'docket' },
     scope: { act: 'procurement', procurementSub: 'scope' },
+    sheets: { act: 'procurement', procurementSub: 'sheets' },
     costing: { act: 'procurement', procurementSub: 'costing' },
     quotation: { act: 'procurement', procurementSub: 'quotation' },
     execution: { act: 'execution' },

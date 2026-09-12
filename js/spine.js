@@ -57,10 +57,19 @@ window.PlanexSpine = (function () {
     ].join('::'));
   }
 
+  // Hash of the inputs that produce the vendor scope sheets.
+  function sheetsInputHash(st) {
+    st = st || S();
+    if (!window.PlanexScopeSheetEngine) return 'none';
+    return window.PlanexScopeSheetEngine.sheetInputHash({
+      scopeDoc: st.scopeDoc, docketSet: st.docketSet, quality: st.scopeQuality
+    });
+  }
+
   function derived() { const st = S(); if (!st.derived) st.derived = {}; return st.derived; }
   function staleMap() {
     const st = S();
-    if (!st.stale) st.stale = { plan: false, scope: false, boq: false, dockets: false, execution: false };
+    if (!st.stale) st.stale = { plan: false, scope: false, boq: false, dockets: false, execution: false, scopeSheets: false };
     return st.stale;
   }
 
@@ -73,11 +82,13 @@ window.PlanexSpine = (function () {
     d.boq = d.boq || { scopeHash: '', builtAt: '' };
     d.dockets = d.dockets || { docketHash: '', builtAt: '' };
     d.execution = d.execution || { docketHash: '', builtAt: '' };
+    d.scopeSheets = d.scopeSheets || { inputHash: '', builtAt: '' };
     if (!d.plan.inputHash) d.plan.inputHash = roomsHash(st.rooms);
     if (!d.scope.inputHash) d.scope.inputHash = scopeInputHash(st);
     if (!d.boq.scopeHash) d.boq.scopeHash = scopeInputHash(st);
     if (!d.dockets.docketHash) d.dockets.docketHash = docketHash(st.scopeDoc, st.rooms, st.moodboards, st.project && st.project.projectType, st.scopeQuality);
     if (!d.execution.docketHash) d.execution.docketHash = d.dockets.docketHash;
+    if (!d.scopeSheets.inputHash) d.scopeSheets.inputHash = sheetsInputHash(st);
     staleMap();
     return d;
   }
@@ -94,6 +105,7 @@ window.PlanexSpine = (function () {
     sm.boq = !!(st.boq && st.boq.length) && !!st.scopeDoc && d.boq.scopeHash !== sih;
     sm.dockets = !!st.docketSet && d.dockets.docketHash !== dh;
     sm.execution = !!st.docketSet && d.execution.docketHash !== dh;
+    sm.scopeSheets = !!(st.scopeSheets && Object.keys(st.scopeSheets).length) && d.scopeSheets.inputHash !== sheetsInputHash(st);
     return sm;
   }
 
@@ -265,6 +277,7 @@ window.PlanexSpine = (function () {
     moodboardHash: moodboardHash,
     scopeHash: scopeHash,
     scopeInputHash: scopeInputHash,
+    sheetsInputHash: sheetsInputHash,
     docketHash: docketHash,
     adoptCurrent: adoptCurrent,
     markDirty: markDirty,

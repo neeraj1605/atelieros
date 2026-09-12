@@ -28,7 +28,7 @@ window.PlanexJourneyRail = (function () {
     const p = progress(S);
     const acts = [
       { k: 'design', label: 'Design', pct: p.design, subs: [['spaces', 'Spaces'], ['moodboard', 'Moodboard'], ['docket', 'Dockets']], sub: (S.ui && S.ui.designSub) || 'spaces', subKey: 'designSub' },
-      { k: 'procurement', label: 'Procurement', pct: p.procurement, subs: [['scope', 'Scope'], ['costing', 'Costing'], ['quotation', 'Buy']], sub: (S.ui && S.ui.procurementSub) || 'scope', subKey: 'procurementSub' },
+      { k: 'procurement', label: 'Procurement', pct: p.procurement, subs: [['scope', 'Scope'], ['sheets', 'Scope Sheets'], ['costing', 'Costing'], ['quotation', 'Buy']], sub: (S.ui && S.ui.procurementSub) || 'scope', subKey: 'procurementSub' },
       { k: 'execution', label: 'Execution', pct: p.execution, subs: [], sub: null, subKey: null }
     ];
 

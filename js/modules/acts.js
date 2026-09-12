@@ -56,6 +56,7 @@ window.PlanexModules = window.PlanexModules || {};
   ];
   const PROC_SUBS = [
     { k: 'scope', label: 'Scope', mod: 'Scope' },
+    { k: 'sheets', label: 'Scope Sheets', mod: 'ScopeSheets' },
     { k: 'costing', label: 'Costing', mod: 'Costing' },
     { k: 'quotation', label: 'Buy', mod: 'Quotation' }
   ];
