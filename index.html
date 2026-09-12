@@ -11,8 +11,10 @@
     (function () {
       try {
         var raw = localStorage.getItem('PLANEX_AI_STATE_V1');
-        var theme = raw ? (JSON.parse(raw).theme || 'light') : 'light';
+        var saved = raw ? JSON.parse(raw) : null;
+        var theme = (saved && saved.uiTheme) || 'light';
         document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+        if (!(saved && saved.ui && saved.ui.enteredApp)) document.documentElement.classList.add('landing-pre');
       } catch (e) { /* ignore */ }
     })();
   </script>
@@ -146,6 +148,7 @@
   <script src="js/ai-client.js"></script>
   <script src="js/components/plan-reader.js"></script>
   <script src="js/modules/dashboard.js"></script>
+  <script src="js/modules/home.js"></script>
   <script src="js/modules/howitworks.js"></script>
   <script src="js/modules/project.js"></script>
   <script src="js/modules/spaces.js"></script>

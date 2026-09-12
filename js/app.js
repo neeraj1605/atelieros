@@ -115,14 +115,14 @@
 
   /* ---------------- App ---------------- */
   const NAV = [
-    { view: 'dashboard', label: 'Home', icon: 'home', step: '' },
+    { view: 'home', label: 'Home', icon: 'home', step: '' },
     { view: 'design', label: 'Design', icon: 'sparkles', step: '1' },
     { view: 'procurement', label: 'Procurement', icon: 'rupee', step: '2' },
     { view: 'execution', label: 'Execution', icon: 'build', step: '3' }
   ];
 
   const LABELS = {
-    dashboard: 'Home', how: 'How it works', design: 'Design', procurement: 'Procurement',
+    home: 'Home', dashboard: 'Home', how: 'How it works', design: 'Design', procurement: 'Procurement',
     execution: 'Execution', project: 'Project', spaces: 'Spaces', scope: 'Scope of Work',
     sheets: 'Scope Sheets', moodboard: 'Moodboard', docket: 'Design Dockets', costing: 'Costing & BOQ', quotation: 'Buy'
   };
@@ -130,6 +130,7 @@
   function moduleFor(view) {
     const M = window.PlanexModules;
     switch (view) {
+      case 'home': return M.Home;
       case 'how': return M.HowItWorks;
       case 'design': return M.Design;
       case 'procurement': return M.Procurement;
@@ -169,8 +170,14 @@
     el.innerHTML = '';
     const M = window.PlanexModules;
     const seen = !!(S.ui && S.ui.seenHowItWorks);
+    const entered = !!(S.ui && S.ui.enteredApp);
+    const showHome = !entered || S.activeView === 'home';
+    document.body.classList.toggle('landing', showHome);
+    document.documentElement.classList.remove('landing-pre');
 
-    if (!seen) {
+    if (showHome && M.Home) {
+      M.Home.render(el);
+    } else if (!seen) {
       M.HowItWorks.render(el);
     } else if (S.ui && S.ui.view === 'workspace') {
       const act = S.ui.act || 'design';
@@ -201,9 +208,17 @@
 
   function navigate(view) {
     const S = window.PlanexStore.state;
-    if (view === 'ai') { window.PlanexStore.setUI({ view: 'copilot' }); renderView(); return; }
+    if (view === 'home') {
+      window.PlanexStore.setUI({ enteredApp: false });
+      window.PlanexStore.setView('home');
+      location.hash = 'home';
+      renderView();
+      closeSidebar();
+      return;
+    }
+    if (view === 'ai') { window.PlanexStore.setUI({ view: 'copilot', enteredApp: true }); renderView(); return; }
     if (VIEW_TO_UI[view]) {
-      const patch = Object.assign({ view: 'workspace' }, VIEW_TO_UI[view]);
+      const patch = Object.assign({ view: 'workspace', enteredApp: true }, VIEW_TO_UI[view]);
       window.PlanexStore.setUI(patch);
       S.activeView = view;
       location.hash = view;
@@ -211,6 +226,7 @@
       closeSidebar();
       return;
     }
+    window.PlanexStore.setUI({ enteredApp: true });
     window.PlanexStore.setView(view);
     location.hash = view;
     renderView();
@@ -348,21 +364,22 @@
     const S = store.state;
 
     // theme
-    applyTheme(S.theme);
+    applyTheme(S.uiTheme || 'light');
 
     // restore view from hash (deep-link straight into the right surface)
     const hash = (location.hash || '').replace('#', '');
     if (hash && LABELS[hash]) {
       S.activeView = hash;
+      S.ui = Object.assign({
+        dock: 'right', collapsed: false, act: 'design', designSub: 'spaces',
+        procurementSub: 'scope', seenHowItWorks: false, enteredApp: (hash !== 'home')
+      }, S.ui, { enteredApp: hash !== 'home' });
       if (VIEW_TO_UI[hash]) {
-        S.ui = Object.assign({
-          dock: 'right', collapsed: false, act: 'design', designSub: 'spaces',
-          procurementSub: 'scope', seenHowItWorks: false
-        }, S.ui, { view: 'workspace' }, VIEW_TO_UI[hash]);
+        S.ui = Object.assign(S.ui, { view: 'workspace' }, VIEW_TO_UI[hash]);
       }
     }
-    // First run: teach the journey before anything else.
-    if (!(S.ui && S.ui.seenHowItWorks) && !hash) S.activeView = 'how';
+    // First run: land on the public homepage.
+    if (!(S.ui && S.ui.enteredApp) && !hash) S.activeView = 'home';
 
     // overlay
     const overlay = document.createElement('div');
@@ -378,8 +395,8 @@
     // theme toggle
     const themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) themeBtn.addEventListener('click', function () {
-      const next = store.state.theme === 'dark' ? 'light' : 'dark';
-      store.setTheme(next);
+      const next = store.state.uiTheme === 'dark' ? 'light' : 'dark';
+      store.setUITheme(next);
       applyTheme(next);
       renderView();
     });
@@ -417,7 +434,7 @@
       const ok = await window.PlanexUI.confirm('Reset the demo project back to its starting state?', { title: 'Reset project', danger: true });
       if (ok) {
         store.reset();
-        applyTheme(store.state.theme);
+        applyTheme(store.state.uiTheme || 'light');
         const c = document.getElementById('currency-select');
         if (c) c.value = store.state.currency;
         renderView();
@@ -452,8 +469,10 @@
       const v = (location.hash || '').replace('#', '');
       if (LABELS[v] && v !== store.state.activeView) {
         store.state.activeView = v;
-        if (VIEW_TO_UI[v]) {
-          window.PlanexStore.setUI(Object.assign({ view: 'workspace' }, VIEW_TO_UI[v]));
+        if (v === 'home') {
+          window.PlanexStore.setUI({ enteredApp: false });
+        } else {
+          window.PlanexStore.setUI(Object.assign({ enteredApp: true }, VIEW_TO_UI[v] ? { view: 'workspace' } : {}, VIEW_TO_UI[v] || {}));
         }
         renderView();
       }

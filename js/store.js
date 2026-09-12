@@ -20,7 +20,7 @@ window.PlanexStore = (function () {
   function buildInitial() {
     const D = window.PlanexData;
     const initial = {
-      theme: 'light',
+      uiTheme: 'light',
       currency: 'INR',
       activeView: 'dashboard',
       project: JSON.parse(JSON.stringify(D.project)),
@@ -88,7 +88,8 @@ window.PlanexStore = (function () {
     };
     initial.project.projectType = 'ready';
     initial.project.plan = 'ai';
-    initial.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false, view: 'copilot', artifactRef: null, leftRailCollapsed: false };
+    initial.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false, enteredApp: false, view: 'copilot', artifactRef: null, leftRailCollapsed: false };
+    initial.leads = [];
     initial.contextVersions.push({
       version: 1,
       source: 'seed',
@@ -116,6 +117,7 @@ window.PlanexStore = (function () {
           if (state.plan === undefined) state.plan = null;
           if (state.activeSpaceId === undefined) state.activeSpaceId = 'all';
           if (!state.moodboards || typeof state.moodboards !== 'object') state.moodboards = {};
+          if (!state.uiTheme) state.uiTheme = 'light';
           if (!state.theme) state.theme = { directions: [], palette: [] };
           if (!state.derived || typeof state.derived !== 'object') state.derived = {
             plan: { inputHash: '', builtAt: '' },
@@ -155,7 +157,9 @@ window.PlanexStore = (function () {
           if (!state.scopeQuality) state.scopeQuality = 'standard';
           if (state.project && !state.project.projectType) state.project.projectType = 'ready';
           if (state.project && !state.project.plan) state.project.plan = 'ai';
-          if (!state.ui) state.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false };
+          if (!state.ui) state.ui = { dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false, enteredApp: false };
+          if (typeof state.ui.enteredApp !== 'boolean') state.ui.enteredApp = false;
+          if (!Array.isArray(state.leads)) state.leads = [];
           if (!state.context || !state.context.project) state.context = buildInitial().context;
           if (!state.contextVersion) state.contextVersion = 1;
           return;
@@ -266,7 +270,7 @@ window.PlanexStore = (function () {
   /* ---------- Mutations ---------- */
   function setView(view) { state.activeView = view; commit(); }
 
-  function setTheme(theme) { state.theme = theme; commit(); }
+  function setUITheme(theme) { state.uiTheme = theme === 'dark' ? 'dark' : 'light'; commit(); }
 
   function setActiveRoom(id) { state.activeRoomId = id; commit(); }
 
@@ -688,12 +692,26 @@ window.PlanexStore = (function () {
     commit();
   }
   function setUI(patch) {
-    state.ui = Object.assign({ dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false }, state.ui, patch || {});
+    state.ui = Object.assign({ dock: 'right', collapsed: false, act: 'design', designSub: 'spaces', procurementSub: 'scope', seenHowItWorks: false, enteredApp: false }, state.ui, patch || {});
     commit();
   }
   function markHowItWorksSeen() { setUI({ seenHowItWorks: true }); }
   function setArtifact(ref) { state.ui.artifactRef = ref || null; commit(); }
   function setSurface(view) { state.ui.view = view === 'workspace' ? 'workspace' : 'copilot'; commit(); }
+
+  // Partner / sales enquiries captured from the homepage.
+  function addLead(lead) {
+    if (!state.leads) state.leads = [];
+    const entry = Object.assign({
+      id: 'lead-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      at: new Date().toISOString(),
+      segment: 'partner'
+    }, lead || {});
+    state.leads.push(entry);
+    pushAudit('lead.capture', { segment: entry.segment, category: entry.category || '', plan: entry.plan || '' });
+    commit();
+    return entry;
+  }
 
   /* ---------- Spaces ---------- */
   function spaceById(id) {
@@ -1285,7 +1303,7 @@ window.PlanexStore = (function () {
     setPlan, regeneratePlan, setSheetNotes,
     spaceById, activeSpace, setActiveSpace, addSpace, updateSpace, removeSpace, setMoodboard, setTheme,
     addSpacePhoto, applyRoomsDiff,
-    setServicePlan, setUI, markHowItWorksSeen, setArtifact, setSurface,
+    setServicePlan, setUI, markHowItWorksSeen, setArtifact, setSurface, addLead, setUITheme,
     confirmScope, statusOf, nextAction, rebuildDerived,
     setFloorplan, clearFloorplan,
     validateFloorplan, unvalidateFloorplan, addRoomImage, removeRoomImage, roomImagesFor, focusRoomFor,
