@@ -263,12 +263,12 @@ window.PlanexModules.Home = (function () {
     { icon: 'wand', title: 'Technology & AI partners', desc: 'Integrate via API for catalogs, pricing, rendering or ERP.' }
   ];
   const DELIVERABLES = [
-    { icon: 'plan', title: 'Drawing set', desc: 'A-01 Main, A-02 Furniture, A-03 Ceiling, A-04 Lighting — with dimensions and title block.' },
-    { icon: 'ruler', title: 'Scope of work', desc: 'Room-by-room, package-by-package: 22 work packages, nothing missed.' },
-    { icon: 'rupee', title: 'Firm BOQ', desc: 'Quantities with makes and rates, GST-ready and editable.' },
-    { icon: 'docket', title: 'Design dockets', desc: '13 trade dockets: joinery, kitchen, ceiling, lighting, electrical, plumbing and more.' },
-    { icon: 'send', title: 'Scope sheets', desc: 'Vendor-facing RFQ documents with inclusions, exclusions and measurement basis.' },
-    { icon: 'build', title: 'Execution pack', desc: 'Programme, QC checkpoints, snag list and handover checklist.' }
+    { icon: 'plan', title: 'Drawing set', desc: 'Four dimensioned plans (A-01 to A-04) your site team builds from.' },
+    { icon: 'ruler', title: 'Scope of work', desc: 'Every room, every work package — nothing missed.' },
+    { icon: 'rupee', title: 'Firm BOQ', desc: 'Quantities, makes and rates, with GST.' },
+    { icon: 'docket', title: 'Design dockets', desc: 'Trade schedules for joinery, kitchen, ceiling, lighting, electrical and plumbing.' },
+    { icon: 'send', title: 'Scope sheets', desc: 'Vendor-ready RFQ documents, so quotes stay comparable.' },
+    { icon: 'build', title: 'Execution pack', desc: 'Programme, QC checks, snag list and handover.' }
   ];
   const GUARANTEES = [
     { title: 'Spec-locked quotes', desc: 'Vendors quote against the same written scope — no silent swaps.' },
@@ -277,12 +277,10 @@ window.PlanexModules.Home = (function () {
     { title: 'Your data, your plan', desc: 'Your drawings and documents stay yours, exportable at any time.' }
   ];
   const FAQ = [
-    { q: 'How is Planex different from an interior designer or a marketplace?', a: 'Planex is the planning layer underneath both. It gives you the drawings, scope, BOQ and vendor-ready documents — so you can build with your own team, or hand the pack to a professional.' },
-    { q: 'Do I need to be technical to use it?', a: 'No. You upload a plan and answer a few questions. Planex AI explains each step in plain language and shows the cost and scope as they evolve.' },
-    { q: 'Are the prices final?', a: 'The BOQ gives you firm, editable indicative rates for your city and quality band. Vendor quotes then land against a fixed scope sheet, so comparison is like-for-like.' },
+    { q: 'How is Planex different from an interior designer or a marketplace?', a: 'Planex is the planning layer underneath both. It gives you the drawings, cost and vendor-ready documents — so you can build with your own team, or hand the pack to a professional.' },
+    { q: 'Do I need to be technical to use it?', a: 'No. You upload a plan and answer a few questions. Planex explains each step in plain language and shows the cost and scope as they change.' },
     { q: 'Can I use Planex for my business?', a: 'Yes. Studio, Firm and Enterprise plans add team seats, procurement, branded outputs and API access for designers, contractors and developers.' },
-    { q: 'What does a partner company get?', a: 'Partners are specced into designs, BOQs and scope sheets, or integrate with Planex. There is no self-serve plan — we design the partnership with you directly.' },
-    { q: 'Does it work across India?', a: 'Yes. Scope, rates and makes are built for Indian homes and the Indian market, with GST-ready documents and city-wise rate bands.' }
+    { q: 'What does a partner company get?', a: 'Partners are specced into designs, costs and scope sheets, or integrate with Planex. There is no self-serve plan — we design the partnership with you directly.' }
   ];
 
   /* ---------------- Actions ---------------- */
@@ -332,7 +330,7 @@ window.PlanexModules.Home = (function () {
       onChapter: function (ch, i) {
         const cap = container.querySelector('#film-cap'); if (cap) cap.textContent = ch.cap;
         const lbl = container.querySelector('#film-label'); if (lbl) lbl.textContent = ch.label;
-        container.querySelectorAll('[data-chapter]').forEach(function (b, j) { b.classList.toggle('active', j === i); });
+        const num = container.querySelector('#film-num'); if (num) num.textContent = String(i + 1);
       },
       onProgress: function (p) { const f = container.querySelector('#film-progress'); if (f) f.style.width = (p * 100) + '%'; }
     });
@@ -404,15 +402,14 @@ window.PlanexModules.Home = (function () {
         <button class="home-brand" data-enter="1"><span class="brand-mark">${ic('home')}</span>
           <span class="brand-text"><span class="brand-name">Planex AI</span><span class="brand-tag">Plan &amp; Execute</span></span></button>
         <nav class="home-links">
-          <button data-scroll="#story">The film</button>
-          <button data-scroll="#demo">How it works</button>
-          <button data-scroll="#gallery">Output</button>
+          <button data-scroll="#idea">The idea</button>
+          <button data-scroll="#demo">See it work</button>
+          <button data-scroll="#deliverables">What you get</button>
           <button data-scroll="#plans">Pricing</button>
           <button data-seg="b2b">Business</button>
         </nav>
         <div class="home-nav-actions">
           <button class="icon-btn" id="home-theme" aria-label="Toggle theme">${ic('sparkles')}</button>
-          <button class="btn btn-secondary btn-sm" data-enter="1">Open app</button>
           <button class="btn btn-primary btn-sm" data-enter="1">Start free</button>
         </div>
       </div></header>`;
@@ -423,80 +420,63 @@ window.PlanexModules.Home = (function () {
       <div class="home-hero-mesh"></div>
       <div class="home-hero-grid">
         <div class="home-hero-copy">
-          <div class="home-eyebrow">${ic('sparkles')} AI interiors for the Indian market</div>
-          <h1 class="home-h1">From an empty flat<br><span class="home-h1-accent">to a home you can build.</span></h1>
-          <p class="home-hero-sub">A floor plan becomes a fully specified, priced, buildable interior — drawings, a GST-ready BOQ, trade dockets and vendor-ready scope sheets. Every quote lands on the same basis, and nothing is left to assumption.</p>
+          <div class="home-eyebrow">${ic('sparkles')} AI interiors for Indian homes &amp; businesses</div>
+          <h1 class="home-h1">Describe your home.<br><span class="home-h1-accent">We design it, price it, and give you the drawings.</span></h1>
+          <p class="home-hero-sub">Upload a floor plan and choose the look. Planex produces the layout, the cost and the documents your team builds from — so you know exactly what you're getting, and what it costs, before work starts.</p>
           <div class="home-cta-row">
-            <button class="btn btn-lg btn-primary" data-enter="1">${ic('arrowRight')} Start your project — free</button>
-            <button class="btn btn-lg btn-secondary" data-scroll="#story" data-film-play="1">▶&nbsp; Watch the film</button>
+            <button class="btn btn-lg btn-primary" data-enter="1">${ic('arrowRight')} Start free</button>
+            <button class="btn btn-lg btn-secondary" data-scroll="#film" data-film-play="1">▶&nbsp; Watch the 60-second film</button>
           </div>
           <div class="home-trustline">
             <span>${ic('check')} No card needed</span>
             <span>${ic('check')} Your plan stays yours</span>
-            <span>${ic('check')} GST-ready BOQ</span>
+            <span>${ic('check')} Built for India</span>
           </div>
         </div>
         <div class="home-hero-art">
           <div class="film-card">
             ${realVideo() || `
-              <div class="film-canvas-wrap"><canvas id="home-film"></canvas></div>
-              <div class="film-chapter-row">
-                <span class="film-chip-label">${ic('image')} Riya &amp; Arjun's 3BHK</span>
-                <div class="film-chapters" id="film-chapters">
-                  ${(window.PlanexHomeFilm ? window.PlanexHomeFilm.CHAPTERS : [{ label: 'The empty flat', at: 0 }, { label: 'Open Planex', at: 6500 }, { label: 'The look comes together', at: 13000 }, { label: 'Priced & buildable', at: 24000 }, { label: 'Home', at: 30000 }]).map(function (c, i) {
-                    return `<button class="film-chapter ${i === 0 ? 'active' : ''}" data-chapter="${i}" data-at="${c.at}">${esc(c.label)}</button>`;
-                  }).join('')}
+              <div class="film-canvas-wrap">
+                <canvas id="home-film"></canvas>
+                <div class="film-overlay">
+                  <span class="film-overlay-k">The story · <span id="film-num">1</span> of 5</span>
+                  <span class="film-overlay-title" id="film-label">The empty flat</span>
                 </div>
+                <button class="film-play-fab" id="film-play" aria-label="Play or pause the film">❚❚</button>
+                <div class="film-progress-bar"><div class="film-progress-fill" id="film-progress"></div></div>
               </div>
-              <div class="film-foot">
-                <button class="btn btn-primary btn-sm" id="film-play">❚❚&nbsp; Pause</button>
-                <span class="film-cap" id="film-cap">Riya and Arjun, in their bare-shell 3BHK.</span>
-                <span class="film-label faint text-xs" id="film-label">The empty flat</span>
-              </div>
-              <div class="demo-progress film-progress"><div class="demo-progress-fill" id="film-progress"></div></div>
+              <p class="film-cap" id="film-cap">Riya and Arjun, in their bare-shell 3BHK.</p>
             `}
           </div>
-          <p class="film-note">Illustrated screen story generated by Planex. Real customer footage plays here automatically once <code>PLANEX_CONFIG.demoVideo.url</code> is set.</p>
         </div>
-      </div>
-      <div class="home-strip">
-        <span>${ic('check')} 20 years of interiors, encoded</span>
-        <span>${ic('check')} 22 work packages</span>
-        <span>${ic('check')} 13 trade dockets</span>
-        <span>${ic('check')} A-01–A-04 drawings</span>
-        <span>${ic('check')} Spec-locked RFQs</span>
-        <span>${ic('check')} Revision control</span>
       </div>
     </section>`;
   }
 
-  function storySection() {
-    const cards = [
-      { icon: 'home', k: 'Chapter 1', t: 'An empty flat', d: 'Riya and Arjun stand in a bare-shell 3BHK with nothing but a plan.' },
-      { icon: 'plan', k: 'Chapter 2', t: 'They open Planex', d: 'They add the floor plan; Planex reads the rooms and they confirm the sizes.' },
-      { icon: 'sparkles', k: 'Chapter 3', t: 'The look comes together', d: 'Room by room, the layout, palette and finish come to life.' },
-      { icon: 'rupee', k: 'Chapter 4', t: 'Priced & buildable', d: 'Scope, BOQ, dockets and vendor-ready documents — priced to the rupee.' },
-      { icon: 'check', k: 'Chapter 5', t: 'Home', d: 'A furnished home, built from one thread of decisions.' }
+  function ideaSection() {
+    const steps = [
+      { n: '1', icon: 'plan', t: 'Design it', d: 'Rooms, layout and an approved look for every space.' },
+      { n: '2', icon: 'rupee', t: 'Cost it', d: 'A firm, GST-ready BOQ with makes, quantities and rates.' },
+      { n: '3', icon: 'build', t: 'Build it', d: 'Drawings, trade dockets and vendor-ready scope sheets.' }
     ];
-    return `<section class="home-section" id="story">
-      <div class="home-seg-head" style="max-width:820px;">
-        <div class="home-eyebrow">${ic('image')} The film</div>
-        <h2 class="home-h2" style="margin-top:10px;">Their story, in five chapters.</h2>
-        <p class="muted" style="margin-top:10px;">Watch the empty flat become a furnished home — then play the interactive walkthrough to see exactly how Planex does it.</p>
+    return `<section class="home-section" id="idea">
+      <div class="home-seg-head home-seg-head-center">
+        <div class="home-eyebrow">${ic('sparkles')} The idea</div>
+        <h2 class="home-h2" style="margin-top:10px;">One plan. Three steps. No guesswork.</h2>
+        <p class="muted" style="margin-top:10px;">Planex is the planning layer between an empty room and a finished home — you make the decisions, it does the drawings, the numbers and the documents.</p>
       </div>
-      <div class="story-grid">
-        ${cards.map(function (c) {
-          return `<button class="story-card reveal" data-scroll="#demo">
-            <span class="story-ico">${ic(c.icon)}</span>
-            <span class="story-k">${esc(c.k)}</span>
-            <strong>${esc(c.t)}</strong>
-            <p class="muted text-sm">${esc(c.d)}</p>
-            <span class="story-link">See how ${ic('arrowRight')}</span>
-          </button>`;
+      <div class="idea-grid">
+        ${steps.map(function (s) {
+          return `<div class="idea-card reveal">
+            <span class="idea-num">${esc(s.n)}</span>
+            <div class="idea-body"><span class="idea-ico">${ic(s.icon)}</span>
+              <h3>${esc(s.t)}</h3><p class="muted text-sm">${esc(s.d)}</p></div>
+          </div>`;
         }).join('')}
       </div>
     </section>`;
   }
+
 
   function demoSection() {
     return `<section class="home-section" id="demo">
@@ -630,9 +610,9 @@ window.PlanexModules.Home = (function () {
     return `<footer class="home-footer">
       <div class="home-footer-brand"><span class="brand-mark">${ic('home')}</span><div><strong>Planex AI</strong><p class="faint text-xs">Plan &amp; Execute · Interiors for India</p></div></div>
       <div class="home-footer-cols">
-        <div><strong>Product</strong><button data-scroll="#story">The film</button><button data-scroll="#demo">How it works</button><button data-scroll="#gallery">Output</button><button data-scroll="#plans">Pricing</button></div>
+        <div><strong>Product</strong><button data-scroll="#idea">The idea</button><button data-scroll="#demo">See it work</button><button data-scroll="#plans">Pricing</button></div>
         <div><strong>Partners</strong><button data-seg="partner">Partner programme</button><a href="mailto:partners@planex.ai">partners@planex.ai</a></div>
-        <div><strong>Company</strong><a href="#home-top" data-scroll="#home-top">Back to top</a><button data-nav="execution">Execution</button></div>
+        <div><strong>Company</strong><a href="#home-top" data-scroll="#home-top">Back to top</a></div>
       </div>
       <div class="home-footer-base"><span>© ${new Date().getFullYear()} Planex AI. All rights reserved.</span><span>Made for the Indian interior market.</span></div>
     </footer>`;
@@ -660,11 +640,11 @@ window.PlanexModules.Home = (function () {
       <div class="home">
         ${header()}
         ${hero()}
-        ${storySection()}
+        ${ideaSection()}
         ${demoSection()}
+        ${deliverables()}
         ${gallerySection()}
         ${segmentSection()}
-        ${deliverables()}
         ${trust()}
         ${faq()}
         ${ctaBand()}
@@ -709,11 +689,8 @@ window.PlanexModules.Home = (function () {
     const fplay = container.querySelector('#film-play');
     if (fplay) fplay.addEventListener('click', function () {
       if (!filmCtl) return;
-      if (filmCtl.isPaused()) { filmCtl.play(); fplay.innerHTML = '❚❚&nbsp; Pause'; }
-      else { filmCtl.pause(); fplay.innerHTML = '▶&nbsp; Play'; }
-    });
-    container.querySelectorAll('[data-chapter]').forEach(function (b) {
-      b.addEventListener('click', function () { if (filmCtl) filmCtl.seek(Number(b.getAttribute('data-at'))); });
+      if (filmCtl.isPaused()) { filmCtl.play(); fplay.textContent = '❚❚'; }
+      else { filmCtl.pause(); fplay.textContent = '▶'; }
     });
     const embed = container.querySelector('#video-embed-play');
     if (embed) embed.addEventListener('click', function () {

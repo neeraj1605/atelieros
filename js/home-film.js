@@ -8,11 +8,11 @@
 window.PlanexHomeFilm = (function () {
   const DUR = 36000;
   const CH = [
-    { at: 0, label: 'The empty flat', cap: 'Riya and Arjun, in their bare-shell 3BHK.' },
-    { at: 6500, label: 'Open Planex', cap: 'They add their floor plan and confirm the rooms.' },
-    { at: 13000, label: 'The look comes together', cap: 'Room by room, the layout and the look take shape.' },
-    { at: 24000, label: 'Priced & buildable', cap: 'Scope, BOQ, dockets and vendor-ready documents.' },
-    { at: 30000, label: 'Home', cap: 'Their home, ready to live in.' }
+    { at: 0, label: 'The empty flat', cap: 'A bare-shell 3BHK, and one floor plan.' },
+    { at: 6500, label: 'Add the plan', cap: 'They add the plan — Planex reads every room and area.' },
+    { at: 13000, label: 'See the look', cap: 'A layout, a palette and finishes, room by room.' },
+    { at: 24000, label: 'Know the cost', cap: 'Scope, cost and build documents — priced to the rupee.' },
+    { at: 30000, label: 'Build it', cap: 'One plan became a home they can build.' }
   ];
 
   const C = {
