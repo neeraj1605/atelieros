@@ -23,7 +23,7 @@ export type SourceKind =
   | 'blueprint_image'
   | 'manual';
 
-export type OpeningType = 'door' | 'window' | 'opening' | 'arch';
+export type OpeningType = 'door' | 'window' | 'opening' | 'arch' | 'balcony_slider';
 
 export type MeasuredBy =
   | 'metric3d_v2'
@@ -43,6 +43,11 @@ export interface Opening {
   height_mm: number;
   /** Sill height above floor. Doors are 0. */
   sill_mm?: number;
+  sill_height_mm?: number;
+  /** Index into the perimeter polygon edges; -1 if not edge-indexed. */
+  wall_index?: number;
+  /** Offset along the wall (positive = along wall direction). */
+  offset_mm?: number;
   swing_deg?: number;
   confidence?: number;
 }
@@ -58,6 +63,8 @@ export interface Room {
   floor_elevation_mm?: number;
   openings?: Opening[];
   confidence?: number;
+  wall_thickness_ext_mm?: number;
+  wall_thickness_int_mm?: number;
 }
 
 export interface Wall {

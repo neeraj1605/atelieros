@@ -15,7 +15,7 @@ PointMm = tuple[float, float]
 PolygonMm = list[PointMm]
 
 SourceKind = Literal["photos", "video", "blueprint_pdf", "blueprint_dwg", "blueprint_image", "manual"]
-OpeningType = Literal["door", "window", "opening", "arch"]
+OpeningType = Literal["door", "window", "opening", "arch", "balcony_slider"]
 MeasuredBy = Literal[
     "metric3d_v2", "droid_slam", "metric3d_v2+droid_slam",
     "polyworld", "layoutformer_pp", "manual", "hybrid"
@@ -29,6 +29,9 @@ class Opening:
     width_mm: float
     height_mm: float
     sill_mm: Optional[float] = None
+    sill_height_mm: Optional[float] = None  # Alias for sill_mm (Pydantic schema compatibility)
+    wall_index: Optional[int] = None
+    offset_mm: Optional[float] = None
     swing_deg: Optional[float] = None
     confidence: Optional[float] = None
 
@@ -44,6 +47,8 @@ class Room:
     floor_elevation_mm: Optional[int] = None
     openings: Optional[list[Opening]] = None
     confidence: Optional[float] = None
+    wall_thickness_ext_mm: Optional[float] = None
+    wall_thickness_int_mm: Optional[float] = None
 
 
 @dataclass
@@ -168,7 +173,7 @@ def validate_contract(contract: MetricSpatialContract) -> dict[str, Any]:
         return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "stats": {"rooms": 0, "area_mm2": 0, "openings": 0}}
     
     room_id_regex = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
-    opening_types = ['door', 'window', 'opening', 'arch']
+    opening_types = ['door', 'window', 'opening', 'arch', 'balcony_slider']
     seen_ids = {}
     total_area = 0.0
     total_openings = 0
@@ -226,7 +231,7 @@ def validate_contract(contract: MetricSpatialContract) -> dict[str, Any]:
                 if not isinstance(opening.height_mm, (int, float)) or opening.height_mm <= 0:
                     errors.append({"code": "E_OPENING_DIMS", "path": f"{op}.height_mm", "message": "height_mm must be a positive number."})
                 
-                sill = opening.sill_mm if opening.sill_mm is not None else 0
+                sill = opening.sill_mm if opening.sill_mm is not None else (opening.sill_height_mm if opening.sill_height_mm is not None else 0)
                 if not isinstance(sill, (int, float)) or sill < 0:
                     errors.append({"code": "E_OPENING_SILL", "path": f"{op}.sill_mm", "message": "sill_mm must be >= 0."})
                 if opening.type == "door" and sill != 0:

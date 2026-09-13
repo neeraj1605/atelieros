@@ -53,7 +53,7 @@ export interface ValidationResult {
 }
 
 const ROOM_ID = /^[a-z0-9][a-z0-9_-]*$/;
-const OPENING_TYPES = ['door', 'window', 'opening', 'arch'];
+const OPENING_TYPES = ['door', 'window', 'opening', 'arch', 'balcony_slider'];
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -152,7 +152,7 @@ export function validateContract(input: unknown): ValidationResult {
       if (!OPENING_TYPES.includes(o.type)) err('E_OPENING_TYPE', `${op}.type`, `Opening type must be one of ${OPENING_TYPES.join(', ')}.`, o.type);
       if (!isInt(o.width_mm) || o.width_mm <= 0) err('E_OPENING_DIMS', `${op}.width_mm`, 'width_mm must be a positive integer.', o.width_mm);
       if (!isInt(o.height_mm) || o.height_mm <= 0) err('E_OPENING_DIMS', `${op}.height_mm`, 'height_mm must be a positive integer.', o.height_mm);
-      const sill = o.sill_mm === undefined ? 0 : o.sill_mm;
+      const sill = o.sill_mm !== undefined ? o.sill_mm : (o.sill_height_mm !== undefined ? o.sill_height_mm : 0);
       if (!isInt(sill) || sill < 0) err('E_OPENING_SILL', `${op}.sill_mm`, 'sill_mm must be an integer >= 0.', o.sill_mm);
       if (o.type === 'door' && sill !== 0) err('E_DOOR_SILL', `${op}.sill_mm`, 'Doors must have sill_mm = 0.', sill);
       if (isInt(room.ceiling_height_mm) && sill + o.height_mm > room.ceiling_height_mm) {
