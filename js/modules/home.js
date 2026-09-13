@@ -17,6 +17,10 @@ window.PlanexModules.Home = (function () {
   let heroTimer = null;
   let demoTimer = null;
   let elapsed = 0;
+  let filmScene = 0;
+  let filmPlaying = true;
+  let filmElapsed = 0;
+  let filmTimer = null;
   const STEP_MS = 5200;
   const HERO_MS = 3600;
 
@@ -478,6 +482,173 @@ window.PlanexModules.Home = (function () {
     container.querySelectorAll('[data-gallery]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-gallery') === tab.id); });
   }
 
+  /* ---------------- Real customer video slot ---------------- */
+  function config() { return window.PLANEX_CONFIG || {}; }
+
+  function videoEmbed(url, provider) {
+    const p = String(provider || '').toLowerCase();
+    if (p === 'youtube' || /youtube\.com|youtu\.be/.test(url)) {
+      const m = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{6,})/);
+      const id = m ? m[1] : '';
+      if (id) return { kind: 'iframe', src: 'https://www.youtube.com/embed/' + id + '?rel=0' };
+    }
+    if (p === 'vimeo' || /vimeo\.com/.test(url)) {
+      const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+      if (m) return { kind: 'iframe', src: 'https://player.vimeo.com/video/' + m[1] };
+    }
+    return { kind: 'video', src: url };
+  }
+
+  function realVideo() {
+    const cfg = config();
+    const v = cfg.demoVideo || {};
+    if (!v.url) return '';
+    const emb = videoEmbed(v.url, v.provider);
+    const poster = v.poster ? ' poster="' + esc(v.poster) + '"' : '';
+    if (emb.kind === 'video') {
+      return `<div class="video-frame"><video class="video-el" controls playsinline preload="metadata"${poster}>
+        <source src="${esc(emb.src)}" type="video/mp4"></video></div>`;
+    }
+    return `<div class="video-frame video-embed" data-embed="${esc(emb.src)}">
+      <button class="video-embed-play" id="video-embed-play">▶&nbsp; Play the customer film</button>
+      ${poster ? `<div class="video-poster" style="background-image:url('${esc(v.poster)}')"></div>` : ''}
+    </div>`;
+  }
+
+  /* ---------------- Simulated screen film (fallback) ---------------- */
+  const FILM = [
+    { key: 'upload', ms: 5200, cap: 'Meera uploads her builder floor plan.',
+      cursor: { x: '66%', y: '58%' }, html: filmUpload },
+    { key: 'spaces', ms: 4400, cap: 'Planex reads the rooms — she confirms the sizes.',
+      cursor: { x: '30%', y: '42%' }, html: filmSpaces },
+    { key: 'chat', ms: 5600, cap: 'She describes the look she wants.',
+      cursor: { x: '55%', y: '76%' }, html: filmChat },
+    { key: 'look', ms: 5600, cap: 'The moodboard and cost appear — ready to build.',
+      cursor: { x: '72%', y: '40%' }, html: filmLook }
+  ];
+
+  function filmUpload() {
+    return `<div class="film-screen">
+      <div class="film-screen-head">Project · Meera's 3BHK <span class="badge badge-info">New</span></div>
+      <div class="film-drop"><div class="film-drop-ico">${ic('upload')}</div><strong>Drag your floor plan</strong>
+      <span class="faint text-xs">PDF, JPG or PNG</span>
+      <button class="btn btn-primary btn-sm" id="film-cta">Upload floor plan</button></div>
+    </div>`;
+  }
+  function filmSpaces() {
+    return `<div class="film-screen">
+      <div class="film-screen-head">Rooms detected <span class="badge badge-success">6 spaces</span></div>
+      <div class="film-rooms">${SAMPLE_ROOMS.slice(0, 6).map(function (r) {
+        return `<div class="film-room"><strong>${esc(r.name)}</strong><span class="faint text-xs">${r.length} × ${r.width} m</span></div>`;
+      }).join('')}</div>
+    </div>`;
+  }
+  function filmChat() {
+    return `<div class="film-screen film-chat">
+      <div class="film-bubble user">Warm Japandi living room, with a TV unit and lots of storage.</div>
+      <div class="film-bubble ai">${ic('sparkles')} Got it. I'll set a warm neutral palette, oak and matte black accents — and size the TV unit to your wall.</div>
+      <div class="film-composer"><span class="film-typed" style="--n:59">Warm Japandi living room, with a TV unit and lots of storage.</span><span class="film-send">${ic('send')}</span></div>
+    </div>`;
+  }
+  function filmLook() {
+    return `<div class="film-screen">
+      <div class="film-screen-head">Living Room · Moodboard</div>
+      <div class="film-split">
+        <div class="film-canvas"><canvas id="film-canvas-mood"></canvas></div>
+        <div class="film-cost"><div class="film-cost-row"><span>Scope</span><strong>7 packages</strong></div>
+          <div class="film-cost-row"><span>BOQ</span><strong>₹6.4L</strong></div>
+          <div class="film-cost-row"><span>Drawings</span><strong>A-01–A-04</strong></div>
+          <div class="film-cost-row"><span>Vendor</span><strong>Quotes ready</strong></div></div>
+      </div>
+    </div>`;
+  }
+
+  function filmSection() {
+    return `
+      <section class="home-section" id="film">
+        <div class="home-seg-head" style="max-width:820px;">
+          <div class="home-eyebrow">${ic('user')} See it in the real world</div>
+          <h2 class="home-h2" style="margin-top:10px;">A homeowner creates her home, start to finish.</h2>
+          <p class="muted" style="margin-top:10px;">Follow Meera from a floor plan to a priced, buildable design — the same journey you'll take.</p>
+        </div>
+        ${realVideo() || `
+        <div class="film" id="film">
+          <div class="film-chrome"><span class="film-dot"></span><span class="film-dot"></span><span class="film-dot"></span>
+            <span class="film-url">planex.ai/studio · Meera's 3BHK</span><span class="badge badge-neutral">Screen demo</span></div>
+          <div class="film-view" id="film-view"></div>
+          <div class="film-cursor" id="film-cursor">${ic('arrowRight')}</div>
+          <div class="film-bar"><button class="btn btn-secondary btn-sm" id="film-play">❚❚&nbsp; Pause</button>
+            <div class="demo-progress"><div class="demo-progress-fill" id="film-fill"></div></div>
+            <span class="film-scene faint text-xs" id="film-scene">1 / ${FILM.length}</span></div>
+          <div class="film-caption" id="film-caption"></div>
+          <div class="film-note faint text-xs">Screen demo generated by Planex. Have real customer footage? Drop the URL into <code>PLANEX_CONFIG.demoVideo.url</code> and it plays here instead.</div>
+        </div>`}
+        <div class="home-cta-row" style="margin-top:16px;">
+          <button class="btn btn-secondary" data-scroll="#demo">${ic('sparkles')} Play the interactive walkthrough</button>
+          <button class="btn btn-primary" data-enter="1">${ic('arrowRight')} Start your project</button>
+        </div>
+      </section>`;
+  }
+
+  function renderFilmScene(container) {
+    const view = container.querySelector('#film-view');
+    if (!view) return;
+    const scene = FILM[filmScene];
+    view.innerHTML = scene.html();
+    const cap = container.querySelector('#film-caption');
+    if (cap) cap.innerHTML = '<span class="film-cap-q">' + esc(scene.cap) + '</span>';
+    const lbl = container.querySelector('#film-scene');
+    if (lbl) lbl.textContent = (filmScene + 1) + ' / ' + FILM.length;
+    const cur = container.querySelector('#film-cursor');
+    if (cur) {
+      cur.style.transition = 'none';
+      cur.style.left = '20%'; cur.style.top = '80%'; cur.style.opacity = '0';
+      requestAnimationFrame(function () {
+        cur.style.transition = 'left .9s cubic-bezier(.2,.8,.2,1), top .9s cubic-bezier(.2,.8,.2,1), opacity .3s ease';
+        cur.style.opacity = '1';
+        cur.style.left = scene.cursor.x; cur.style.top = scene.cursor.y;
+      });
+      setTimeout(function () {
+        if (cur.isConnected) { cur.classList.add('click'); setTimeout(function () { cur.classList.remove('click'); }, 420); }
+      }, 1000);
+    }
+    if (scene.key === 'upload') {
+      const btn = container.querySelector('#film-cta');
+      if (btn) setTimeout(function () {
+        if (!btn.isConnected) return;
+        btn.classList.add('film-cta-active');
+        const drop = container.querySelector('.film-drop');
+        if (drop) drop.classList.add('film-drop-done');
+      }, 1400);
+    }
+    if (scene.key === 'look') {
+      const cv = container.querySelector('#film-canvas-mood');
+      if (cv) setTimeout(function () { if (cv.isConnected) drawMoodboardInto(cv); }, 300);
+    }
+  }
+
+  function startFilm(container) {
+    stopFilm();
+    filmPlaying = true;
+    updateFilmButton(container);
+    filmElapsed = 0;
+    filmTimer = setInterval(function () {
+      if (!filmPlaying) return;
+      if (!container.querySelector('#film-view')) { stopFilm(); return; }
+      filmElapsed += 80;
+      const fill = container.querySelector('#film-fill');
+      const scene = FILM[filmScene];
+      const pct = Math.min(1, filmElapsed / scene.ms);
+      if (fill) fill.style.width = (pct * 100) + '%';
+      if (pct >= 1) { filmScene = (filmScene + 1) % FILM.length; filmElapsed = 0; renderFilmScene(container); }
+    }, 80);
+  }
+  function stopFilm() { if (filmTimer) { clearInterval(filmTimer); filmTimer = null; } filmPlaying = false; }
+  function updateFilmButton(container) {
+    const b = container.querySelector('#film-play');
+    if (b) b.innerHTML = filmPlaying ? '❚❚&nbsp; Pause' : '▶&nbsp; Play';
+  }
+
   /* ---------------- Hero canvas ---------------- */
   function drawHero(container) {
     const cv = container.querySelector('#hero-canvas');
@@ -783,12 +954,15 @@ window.PlanexModules.Home = (function () {
     // reset timers from any previous render
     if (heroTimer) { clearInterval(heroTimer); heroTimer = null; }
     stopDemo();
+    stopFilm();
     elapsed = 0;
+    filmElapsed = 0;
 
     container.innerHTML = `
       <div class="home">
         ${header()}
         ${hero()}
+        ${filmSection()}
         ${demoSection()}
         ${gallerySection()}
         ${segmentSection()}
@@ -801,6 +975,8 @@ window.PlanexModules.Home = (function () {
       </div>`;
     bind(container);
     startHero(container);
+    renderFilmScene(container);
+    startFilm(container);
     renderStage(container);
     renderGallery(container);
     startDemo(container);
@@ -852,6 +1028,19 @@ window.PlanexModules.Home = (function () {
     // gallery tabs
     container.querySelectorAll('[data-gallery]').forEach(function (b) {
       b.addEventListener('click', function () { galleryTab = b.getAttribute('data-gallery'); renderGallery(container); });
+    });
+    // real-video embed (lazy load on click)
+    const embed = container.querySelector('#video-embed-play');
+    if (embed) embed.addEventListener('click', function () {
+      const wrap = embed.closest('.video-embed');
+      const src = wrap ? wrap.getAttribute('data-embed') : '';
+      if (wrap && src) wrap.innerHTML = '<iframe class="video-el" src="' + esc(src) + '?autoplay=1" title="Planex customer film" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+    });
+    // film controls
+    const filmPlay = container.querySelector('#film-play');
+    if (filmPlay) filmPlay.addEventListener('click', function () {
+      if (filmPlaying) { stopFilm(); updateFilmButton(container); }
+      else { startFilm(container); }
     });
   }
 

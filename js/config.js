@@ -12,6 +12,15 @@ window.PLANEX_CONFIG = {
   // Cloudflare Turnstile site key. Test key (always passes); replace for production.
   turnstileSiteKey: '1x00000000000000000000AA',
 
+  // Real customer/demo film shown on the homepage. Leave url empty to show the
+  // built-in simulated screen demo. Set url to an MP4, YouTube or Vimeo link and
+  // set provider to 'mp4' | 'youtube' | 'vimeo' (optional; auto-detected).
+  demoVideo: {
+    url: '',
+    provider: '',
+    poster: ''
+  },
+
   // How many prior turns to include when sending grounding state.
   maxHistoryTurns: 20
 };
