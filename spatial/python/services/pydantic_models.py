@@ -1,29 +1,16 @@
 """
 Pydantic models for the spatial pipeline API.
-Mirrors the MetricSpatialContract with Pydantic validation.
+Reuses RoomContract models and extends for pipeline input/output.
 """
+import os
+import sys
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 
+# Add parent directory for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class Opening(BaseModel):
-    id: str
-    type: Literal["door", "window", "opening", "arch", "balcony_slider"]
-    wall_index: int
-    offset_mm: float
-    width_mm: float
-    height_mm: float
-    sill_height_mm: float = 0.0
-
-
-class MetricRoomContract(BaseModel):
-    project_id: str
-    room_type: Literal["living", "modular_kitchen", "master_bed", "pooja"]
-    ceiling_height_mm: float = Field(default=2800.0, description="Standard Indian slab height")
-    wall_thickness_ext_mm: float = 230.0
-    wall_thickness_int_mm: float = 115.0
-    perimeter_polygon: List[List[float]]  # [X, Y] coordinates in mm, clockwise
-    openings: List[Opening]
+from room_contract import MetricRoomContract, Opening
 
 
 class PipelineInput(BaseModel):
@@ -43,3 +30,6 @@ class PipelineOutput(BaseModel):
     cad: dict
     boq: dict
     processing_time_ms: float
+
+
+__all__ = ["MetricRoomContract", "Opening", "PipelineInput", "PipelineOutput"]

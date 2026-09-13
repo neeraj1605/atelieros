@@ -293,7 +293,7 @@
      Section 3 — Validator
      ============================================================ */
   var ROOM_ID_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
-  var OPENING_TYPES = ['door', 'window', 'opening', 'arch'];
+  var OPENING_TYPES = ['door', 'window', 'opening', 'arch', 'balcony_slider'];
 
   function isObject(v) {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -431,7 +431,7 @@
         if (!isInt(o.height_mm) || o.height_mm <= 0)
           err('E_OPENING_DIMS', op + '.height_mm', 'height_mm must be a positive integer.', o.height_mm);
 
-        var sill = o.sill_mm === undefined ? 0 : o.sill_mm;
+        var sill = o.sill_mm !== undefined ? o.sill_mm : (o.sill_height_mm !== undefined ? o.sill_height_mm : 0);
         if (!isInt(sill) || sill < 0)
           err('E_OPENING_SILL', op + '.sill_mm', 'sill_mm must be an integer >= 0.', o.sill_mm);
         if (o.type === 'door' && sill !== 0)

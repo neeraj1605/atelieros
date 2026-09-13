@@ -29,8 +29,10 @@ export interface PlanexRoom {
   openings?: PlanexOpening[];
 }
 
+export type PlanexOpeningType = 'door' | 'window' | 'opening' | 'arch' | 'balcony_slider';
+
 export interface PlanexOpening {
-  type: 'door' | 'window' | 'opening' | 'arch';
+  type: PlanexOpeningType;
   x?: number;
   y?: number;
   width?: number;
@@ -104,9 +106,11 @@ function mapOpening(opening: PlanexOpening, roomPolygon: PolygonMm): Opening | n
 
   if (opening.sill !== undefined) {
     result.sill_mm = Math.round(opening.sill * M_TO_MM);
+    result.sill_height_mm = Math.round(opening.sill * M_TO_MM);
   }
   if (opening.type === 'door') {
     result.sill_mm = 0;
+    result.sill_height_mm = 0;
   }
   if (opening.swing_deg !== undefined) {
     result.swing_deg = opening.swing_deg;
