@@ -1480,3 +1480,11 @@ html.landing-pre .view { padding: 0; }
 .gallery-tab { padding: 6px 12px; font-size: 11.5px; }
 
 @media (max-width: 980px) { .idea-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Hero real video ---------- */
+.hero-video-wrap { position: relative; border-radius: var(--r-lg); overflow: hidden; background: #000; }
+.hero-video-wrap .hero-video { border-radius: 0; }
+.hero-video-ctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 8px; z-index: 3; }
+.hero-vc { width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(24,24,27,.72); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.hero-vc:hover { background: rgba(24,24,27,.92); }
+.hero-vc svg { width: 16px; height: 16px; }

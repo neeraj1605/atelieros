@@ -16,9 +16,9 @@ window.PLANEX_CONFIG = {
   // built-in simulated screen demo. Set url to an MP4, YouTube or Vimeo link and
   // set provider to 'mp4' | 'youtube' | 'vimeo' (optional; auto-detected).
   demoVideo: {
-    url: '',
-    provider: '',
-    poster: ''
+    url: 'assets/video/home-tour.mp4',
+    provider: 'mp4',
+    poster: 'assets/video/home-tour-poster.jpg'
   },
 
   // How many prior turns to include when sending grounding state.

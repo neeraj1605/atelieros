@@ -154,12 +154,28 @@ window.PlanexModules.Home = (function () {
     }
     return { kind: 'video', src: url };
   }
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  const ICON_MUTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>';
+  const ICON_SOUND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 6a8.5 8.5 0 010 12"/></svg>';
+
   function realVideo() {
     const v = config().demoVideo || {};
     if (!v.url) return '';
     const emb = videoEmbed(v.url, v.provider);
     const poster = v.poster ? ' poster="' + esc(v.poster) + '"' : '';
-    if (emb.kind === 'video') return `<video class="hero-video" controls playsinline preload="metadata"${poster}><source src="${esc(emb.src)}" type="video/mp4"></video>`;
+    if (emb.kind === 'video') {
+      return `<div class="hero-video-wrap">
+        <video class="hero-video" id="hero-video" muted autoplay loop playsinline preload="metadata"${poster}>
+          <source src="${esc(emb.src)}" type="video/mp4">
+        </video>
+        <div class="hero-video-ctl">
+          <button class="hero-vc" id="hero-vc-play" aria-label="Pause or play">${ICON_PAUSE}</button>
+          <button class="hero-vc" id="hero-vc-mute" aria-label="Unmute">${ICON_MUTE}</button>
+        </div>
+      </div>
+      <p class="film-cap">Planex in 20 seconds — from one plan to a build-ready home.</p>`;
+    }
     return `<div class="hero-video hero-video-embed" data-embed="${esc(emb.src)}"><button class="btn btn-primary" id="video-embed-play">▶&nbsp; Play the customer film</button></div>`;
   }
 
@@ -415,6 +431,20 @@ window.PlanexModules.Home = (function () {
       </div></header>`;
   }
 
+  function canvasFilmMarkup() {
+    const chs = (window.PlanexHomeFilm ? window.PlanexHomeFilm.CHAPTERS : [{ label: 'The empty flat' }, { label: 'Add the plan' }, { label: 'See the look' }, { label: 'Know the cost' }, { label: 'Build it' }]);
+    return `<div class="film-canvas-wrap">
+        <canvas id="home-film"></canvas>
+        <div class="film-overlay">
+          <span class="film-overlay-k">The story · <span id="film-num">1</span> of ${chs.length}</span>
+          <span class="film-overlay-title" id="film-label">${esc(chs[0].label)}</span>
+        </div>
+        <button class="film-play-fab" id="film-play" aria-label="Play or pause the film">❚❚</button>
+        <div class="film-progress-bar"><div class="film-progress-fill" id="film-progress"></div></div>
+      </div>
+      <p class="film-cap" id="film-cap">Riya and Arjun, in their bare-shell 3BHK.</p>`;
+  }
+
   function hero() {
     return `<section class="home-hero">
       <div class="home-hero-mesh"></div>
@@ -425,7 +455,7 @@ window.PlanexModules.Home = (function () {
           <p class="home-hero-sub">Upload a floor plan and choose the look. Planex produces the layout, the cost and the documents your team builds from — so you know exactly what you're getting, and what it costs, before work starts.</p>
           <div class="home-cta-row">
             <button class="btn btn-lg btn-primary" data-enter="1">${ic('arrowRight')} Start free</button>
-            <button class="btn btn-lg btn-secondary" data-scroll="#film" data-film-play="1">▶&nbsp; Watch the 60-second film</button>
+            <button class="btn btn-lg btn-secondary" data-scroll="#film" data-film-play="1">▶&nbsp; Watch the film</button>
           </div>
           <div class="home-trustline">
             <span>${ic('check')} No card needed</span>
@@ -434,19 +464,8 @@ window.PlanexModules.Home = (function () {
           </div>
         </div>
         <div class="home-hero-art">
-          <div class="film-card">
-            ${realVideo() || `
-              <div class="film-canvas-wrap">
-                <canvas id="home-film"></canvas>
-                <div class="film-overlay">
-                  <span class="film-overlay-k">The story · <span id="film-num">1</span> of 5</span>
-                  <span class="film-overlay-title" id="film-label">The empty flat</span>
-                </div>
-                <button class="film-play-fab" id="film-play" aria-label="Play or pause the film">❚❚</button>
-                <div class="film-progress-bar"><div class="film-progress-fill" id="film-progress"></div></div>
-              </div>
-              <p class="film-cap" id="film-cap">Riya and Arjun, in their bare-shell 3BHK.</p>
-            `}
+          <div class="film-card" id="film">
+            ${realVideo() || canvasFilmMarkup()}
           </div>
         </div>
       </div>
@@ -658,6 +677,16 @@ window.PlanexModules.Home = (function () {
     setupReveal(container);
   }
 
+  function bindFilmPlay(container) {
+    const fplay = container.querySelector('#film-play');
+    if (!fplay) return;
+    fplay.addEventListener('click', function () {
+      if (!filmCtl) return;
+      if (filmCtl.isPaused()) { filmCtl.play(); fplay.textContent = '❚❚'; }
+      else { filmCtl.pause(); fplay.textContent = '▶'; }
+    });
+  }
+
   function bind(container) {
     container.querySelectorAll('[data-enter]').forEach(function (b) { b.addEventListener('click', function () { enterApp(); }); });
     container.querySelectorAll('[data-scroll]').forEach(function (b) {
@@ -686,12 +715,58 @@ window.PlanexModules.Home = (function () {
     if (submit) submit.addEventListener('click', function () { submitPartner(container); });
 
     // film controls
-    const fplay = container.querySelector('#film-play');
-    if (fplay) fplay.addEventListener('click', function () {
-      if (!filmCtl) return;
-      if (filmCtl.isPaused()) { filmCtl.play(); fplay.textContent = '❚❚'; }
-      else { filmCtl.pause(); fplay.textContent = '▶'; }
-    });
+    bindFilmPlay(container);
+    // real hero video: autoplay muted loop, custom controls, plays only when visible
+    const hv = container.querySelector('#hero-video');
+    if (hv) {
+      const playBtn = container.querySelector('#hero-vc-play');
+      const muteBtn = container.querySelector('#hero-vc-mute');
+      const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const conn = (typeof navigator !== 'undefined' && navigator.connection) ? navigator.connection : null;
+      const saveData = !!(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')));
+      const quiet = reduced || saveData;
+      const setPlayIcon = function () { if (playBtn) playBtn.innerHTML = (hv.paused ? ICON_PLAY : ICON_PAUSE); };
+      const setMuteIcon = function () { if (muteBtn) muteBtn.innerHTML = (hv.muted ? ICON_MUTE : ICON_SOUND); };
+      setPlayIcon(); setMuteIcon();
+      try { if (quiet) { hv.autoplay = false; if (typeof hv.pause === 'function') hv.pause(); } } catch (e) { /* ignore */ }
+      if (quiet && playBtn) playBtn.innerHTML = ICON_PLAY;
+      if (playBtn) playBtn.addEventListener('click', function () {
+        try {
+          if (hv.paused) { const pr = hv.play(); if (pr && pr.catch) pr.catch(function () { }); }
+          else hv.pause();
+        } catch (e) { /* ignore */ }
+        setPlayIcon();
+      });
+      if (muteBtn) muteBtn.addEventListener('click', function () {
+        try { hv.muted = !hv.muted; } catch (e) { /* ignore */ }
+        setMuteIcon();
+      });
+      if (window.IntersectionObserver) {
+        const io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            try {
+              if (en.isIntersecting) { if (!quiet) { const pr = hv.play(); if (pr && pr.catch) pr.catch(function () { }); } }
+              else if (typeof hv.pause === 'function') hv.pause();
+            } catch (e) { /* ignore */ }
+            setPlayIcon();
+          });
+        }, { threshold: 0.35 });
+        io.observe(hv);
+      }
+
+      // Graceful fallback: if the file can't load, use the canvas film.
+      const swapToCanvas = function () {
+        const card = container.querySelector('#film');
+        if (!card || !card.querySelector('.hero-video-wrap')) return;
+        card.innerHTML = canvasFilmMarkup();
+        mountFilm(container);
+        bindFilmPlay(container);
+      };
+      hv.addEventListener('error', swapToCanvas);
+      const srcEl = hv.querySelector('source');
+      if (srcEl) srcEl.addEventListener('error', swapToCanvas);
+    }
+
     const embed = container.querySelector('#video-embed-play');
     if (embed) embed.addEventListener('click', function () {
       const wrap = embed.closest('.hero-video-embed');
