@@ -1,64 +1,297 @@
 /* ============================================================
    Planex — Home (public homepage)
-   Market-ready landing for three audiences: homeowners (B2C),
+   Visual, interactive landing for three audiences: homeowners (B2C),
    businesses (B2B) and partner companies (connect directly).
-   Plans are shown per segment; the product is one click away.
+   All product visuals are rendered live from the real Planex engines
+   (plans, layouts, elevations, moodboard) — no stock assets.
    ============================================================ */
 window.PlanexModules = window.PlanexModules || {};
 
 window.PlanexModules.Home = (function () {
   let seg = 'b2c';
+  let demoStep = 0;
+  let demoPlaying = true;
+  let galleryTab = 'main';
+  let heroIdx = 0;
+
+  let heroTimer = null;
+  let demoTimer = null;
+  let elapsed = 0;
+  const STEP_MS = 5200;
+  const HERO_MS = 3600;
 
   function store() { return window.PlanexStore; }
   function ic(n) { return window.PlanexIcons.get(n); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function cssVar(name, fallback) {
+    try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
+    catch (e) { return fallback; }
+  }
 
+  /* ---------------- Sample project (drives every visual) ---------------- */
+  const SAMPLE_ROOMS = [
+    { name: 'Living Room', length: 5.4, width: 4.2 },
+    { name: 'Dining Room', length: 3.6, width: 3.0 },
+    { name: 'Modular Kitchen', length: 3.0, width: 2.4 },
+    { name: 'Master Bedroom', length: 4.5, width: 3.6 },
+    { name: 'Kids Bedroom', length: 3.6, width: 3.0 },
+    { name: 'Master Bathroom', length: 2.4, width: 1.8 }
+  ];
+  let _plan = null;
+  function samplePlan() {
+    if (_plan) return _plan;
+    try { _plan = window.PlanexPlanGenerator.generatePlan(SAMPLE_ROOMS); } catch (e) { _plan = null; }
+    return _plan;
+  }
+  const SAMPLE_UNIT = { mark: 'FU1', name: 'TV unit', size: '1800 × 450 × 1800' };
+  const PALETTE = [
+    { role: 'Base', name: 'Warm plaster', hex: '#ece5db' },
+    { role: 'Wood', name: 'Teak', hex: '#b07d4f' },
+    { role: 'Accent', name: 'Olive', hex: '#7d8a6a' },
+    { role: 'Deep', name: 'Charcoal', hex: '#2f3437' },
+    { role: 'Metal', name: 'Antique brass', hex: '#b08d57' },
+    { role: 'Soft', name: 'Linen', hex: '#f4f1ec' }
+  ];
+
+  /* ---------------- Canvas painters ---------------- */
+  function paint(canvas, W, H, fn) {
+    try {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
+      const c = canvas.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      fn(c);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function drawSheetInto(canvas, kind) {
+    const plan = samplePlan();
+    if (!plan || !window.PlanexDrawingEngine) return false;
+    try {
+      window.PlanexDrawingEngine.drawSheet(canvas, kind, plan, {
+        project: 'Planex demo home', date: new Date().toLocaleDateString(), revision: 'P1', provisional: false
+      });
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function drawMoodboardInto(canvas) {
+    const W = canvas.parentElement && canvas.parentElement.clientWidth ? canvas.parentElement.clientWidth : 760;
+    const H = Math.round(W * 0.6);
+    return paint(canvas, W, H, function (c) {
+      const line = cssVar('--border', '#e4e4e7');
+      const text = cssVar('--text', '#18181b');
+      const muted = cssVar('--text-muted', '#a1a1aa');
+      const surface = cssVar('--surface', '#ffffff');
+      c.fillStyle = surface; c.fillRect(0, 0, W, H);
+      const pad = Math.round(W * 0.035);
+      // Big material tiles
+      const tileY = pad;
+      const tileH = Math.round(H * 0.52);
+      const gap = Math.round(W * 0.02);
+      const tileW = Math.round((W - pad * 2 - gap * 2) / 3);
+      const tiles = [
+        { label: 'Fluted wood', a: '#b07d4f', b: '#8a5d38', tex: 'wood' },
+        { label: 'Linen upholstery', a: '#efe9e0', b: '#ded4c6', tex: 'linen' },
+        { label: 'Terrazzo floor', a: '#e9e6df', b: '#cfc9bd', tex: 'stone' }
+      ];
+      tiles.forEach(function (t, i) {
+        const x = pad + i * (tileW + gap);
+        const g = c.createLinearGradient(x, tileY, x + tileW, tileY + tileH);
+        g.addColorStop(0, t.a); g.addColorStop(1, t.b);
+        roundRect(c, x, tileY, tileW, tileH, 16); c.fillStyle = g; c.fill();
+        // texture
+        c.save();
+        roundRect(c, x, tileY, tileW, tileH, 16); c.clip();
+        c.globalAlpha = 0.18;
+        if (t.tex === 'wood') {
+          c.strokeStyle = '#5b3d22'; c.lineWidth = 1.2;
+          for (let yy = tileY + 8; yy < tileY + tileH; yy += 11) { c.beginPath(); c.moveTo(x, yy); c.bezierCurveTo(x + tileW * 0.3, yy - 4, x + tileW * 0.7, yy + 4, x + tileW, yy); c.stroke(); }
+        } else if (t.tex === 'linen') {
+          c.strokeStyle = '#b8a892';
+          for (let yy = tileY; yy < tileY + tileH; yy += 7) { c.beginPath(); c.moveTo(x, yy); c.lineTo(x + tileW, yy); c.stroke(); }
+          for (let xx = x; xx < x + tileW; xx += 7) { c.beginPath(); c.moveTo(xx, tileY); c.lineTo(xx, tileY + tileH); c.stroke(); }
+        } else {
+          c.fillStyle = '#8a8377';
+          for (let k = 0; k < 90; k++) { const rx = x + Math.random() * tileW, ry = tileY + Math.random() * tileH, r = 1 + Math.random() * 2.4; c.beginPath(); c.arc(rx, ry, r, 0, Math.PI * 2); c.fill(); }
+        }
+        c.restore();
+        c.globalAlpha = 1;
+        c.fillStyle = 'rgba(0,0,0,.45)';
+        roundRect(c, x + 12, tileY + tileH - 32, c.measureText(t.label).width + 46, 22, 11); c.fill();
+        c.fillStyle = '#fff'; c.font = '600 11px Inter, sans-serif'; c.textAlign = 'left';
+        c.fillText(t.label, x + 24, tileY + tileH - 17);
+      });
+      // Palette strip
+      const py = tileY + tileH + Math.round(H * 0.09);
+      c.fillStyle = muted; c.font = '700 10px Inter, sans-serif'; c.textAlign = 'left';
+      c.fillText('PALETTE', pad, py - 10);
+      const sw = Math.round((W - pad * 2 - gap * (PALETTE.length - 1)) / PALETTE.length);
+      PALETTE.forEach(function (p, i) {
+        const x = pad + i * (sw + gap);
+        roundRect(c, x, py, sw, Math.round(H * 0.16), 12); c.fillStyle = p.hex; c.fill();
+        c.strokeStyle = line; c.lineWidth = 1; c.stroke();
+        c.fillStyle = text; c.font = '600 10px Inter, sans-serif';
+        c.fillText(p.name, x + 2, py + Math.round(H * 0.16) + 14);
+        c.fillStyle = muted; c.font = '500 9px Inter, sans-serif';
+        c.fillText(p.hex.toUpperCase(), x + 2, py + Math.round(H * 0.16) + 26);
+      });
+    });
+  }
+
+  /* ---------------- Walkthrough steps ---------------- */
+  function demoChipRows(items) {
+    return `<div class="demo-chips">${items.map(function (x) { return '<span class="demo-chip">' + esc(x) + '</span>'; }).join('')}</div>`;
+  }
+
+  function spacesDOM() {
+    return `<div class="demo-panel">
+      <div class="demo-room-grid">
+        ${SAMPLE_ROOMS.map(function (r) {
+          return `<div class="demo-room"><div class="demo-room-name">${esc(r.name)}</div><div class="demo-room-dim">${r.length} × ${r.width} m</div><div class="demo-room-area">${(r.length * r.width).toFixed(1)} m²</div></div>`;
+        }).join('')}
+      </div>
+      ${demoChipRows(['6 spaces confirmed', 'Area schedule ready', 'Photos attached', 'Brief captured'])}
+    </div>`;
+  }
+
+  function scopeDOM() {
+    const pkgs = [
+      ['Flooring', 92], ['Painting', 88], ['False Ceiling', 76], ['Electrical', 84],
+      ['Lighting', 70], ['Joinery & Millwork', 81], ['Kitchen Systems', 74], ['Plumbing', 66]
+    ];
+    return `<div class="demo-panel">
+      <div class="demo-list">
+        ${pkgs.map(function (p) {
+          return `<div class="demo-list-row"><span class="demo-list-name">${esc(p[0])}</span>
+            <span class="demo-bar"><span class="demo-bar-fill" style="width:${p[1]}%"></span></span>
+            <span class="faint text-xs">${p[1]}%</span></div>`;
+        }).join('')}
+      </div>
+      ${demoChipRows(['22 work packages', 'Room by room', 'Nothing missed'])}
+    </div>`;
+  }
+
+  function boqDOM() {
+    const rows = [
+      ['Vitrified flooring 600×600', '520 sqft', '₹145', '₹75,400'],
+      ['Gypsum false ceiling + cove', '380 sqft', '₹78', '₹29,640'],
+      ['Sliding-door wardrobe', '8 rft', '₹7,800', '₹62,400'],
+      ['TV unit with storage', '1 nos', '₹38,000', '₹38,000'],
+      ['Interior emulsion', '1,850 sqft', '₹55', '₹1,01,750']
+    ];
+    return `<div class="demo-panel">
+      <table class="demo-table"><thead><tr><th>Line</th><th>Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead><tbody>
+        ${rows.map(function (r) { return `<tr><td>${esc(r[0])}</td><td class="faint">${esc(r[1])}</td><td class="num">${esc(r[2])}</td><td class="num">${esc(r[3])}</td></tr>`; }).join('')}
+      </tbody><tfoot><tr><td colspan="3" class="num">Total incl. 18% GST</td><td class="num"><strong>₹36.7L</strong></td></tr></tfoot></table>
+      ${demoChipRows(['GST-ready', 'Editable rates', 'Makes included'])}
+    </div>`;
+  }
+
+  function sheetDOM() {
+    return `<div class="demo-panel">
+      <div class="demo-doc">
+        <div class="demo-doc-head">
+          <div><div class="demo-doc-title">Furniture &amp; Joinery — Scope Sheet</div><div class="faint text-xs">Millwork · Sheet JOINERY · R1 · Issued</div></div>
+          <span class="badge badge-success">Audit passed</span>
+        </div>
+        <div class="demo-doc-line"><span>Wardrobes &amp; internals</span><span class="faint">To be measured on site</span></div>
+        <div class="demo-doc-line"><span>TV unit &amp; crockery</span><span class="faint">Per unit</span></div>
+        <div class="demo-doc-line"><span>Carcass / shutter / hardware</span><span class="faint">Specified</span></div>
+      </div>
+      ${demoChipRows(['Inclusions & exclusions', 'Measurement basis', 'Drawings attached', 'Frozen on issue'])}
+    </div>`;
+  }
+
+  function execDOM() {
+    const phases = [
+      ['Design & freeze', 100, 'done'], ['Demolition & civil', 100, 'done'], ['Plumbing & electrical', 60, 'active'],
+      ['Ceiling & wall finishes', 20, 'upcoming'], ['Joinery & millwork', 0, 'upcoming'], ['Flooring & paint', 0, 'upcoming']
+    ];
+    return `<div class="demo-panel">
+      <div class="demo-gantt">
+        ${phases.map(function (p) {
+          return `<div class="demo-gantt-row"><span class="demo-gantt-name">${esc(p[0])}</span>
+            <span class="demo-bar"><span class="demo-bar-fill ${p[2]}" style="width:${p[1]}%"></span></span>
+            <span class="faint text-xs">${p[1]}%</span></div>`;
+        }).join('')}
+      </div>
+      ${demoChipRows(['Programme tracked', 'Stage QC sign-off', '1 open snag'])}
+    </div>`;
+  }
+
+  const DEMO = [
+    { label: 'Floor plan', title: 'Read your floor plan', you: 'Upload a plan, image or sketch.', planex: 'Reads the rooms, names and approximate areas — you confirm the dimensions.', out: 'A validated plan and area schedule.', kind: 'canvas', sheet: 'main' },
+    { label: 'Spaces', title: 'Set up every space', you: 'Confirm sizes, add photos, note what you want.', planex: 'Turns rooms into spaces with a brief, condition and status.', out: 'A space-by-space brief.', kind: 'dom', html: spacesDOM },
+    { label: 'Moodboard', title: 'Choose the look', you: 'Pick a direction and a palette.', planex: 'Builds a colour palette with materials, makes and finishes per space.', out: 'An approved look with finish references.', kind: 'canvas', mood: true },
+    { label: 'Scope', title: 'Scope the work', you: 'Review what is included, exclude what is not.', planex: 'Generates 22 work packages room by room, with quantities.', out: 'A complete, priced-ready scope of work.', kind: 'dom', html: scopeDOM },
+    { label: 'Costing', title: 'Know the cost before you build', you: 'Adjust quality and compare options.', planex: 'Prices every line with makes and rates, and keeps GST current.', out: 'A firm, editable, GST-ready BOQ.', kind: 'dom', html: boqDOM },
+    { label: 'Dockets', title: 'Issue the drawings', you: 'Check the trade schedules and details.', planex: 'Builds 13 trade dockets — joinery, ceiling, lighting, electrical and more.', out: 'Build-ready dockets and elevations.', kind: 'canvas', unit: true },
+    { label: 'Scope sheets', title: 'Get like-for-like quotes', you: 'Issue scope sheets to your vendors.', planex: 'Freezes the scope, audits every gap and analyses uploaded quotes.', out: 'Vendor quotes on one basis.', kind: 'dom', html: sheetDOM },
+    { label: 'Execution', title: 'Build and track to handover', you: 'Follow the programme and close snags.', planex: 'Tracks milestones, stage-wise QC and the handover checklist.', out: 'A snag-free handover.', kind: 'dom', html: execDOM }
+  ];
+
+  const GALLERY = [
+    { id: 'main', label: 'A-01 Main Layout', kind: 'sheet' },
+    { id: 'furniture', label: 'A-02 Furniture', kind: 'sheet' },
+    { id: 'ceiling', label: 'A-03 Ceiling', kind: 'sheet' },
+    { id: 'lighting', label: 'A-04 Lighting', kind: 'sheet' },
+    { id: 'unit', label: 'Unit elevation', kind: 'unit' },
+    { id: 'electrical', label: 'Electrical layout', kind: 'layout' },
+    { id: 'plumbing', label: 'Plumbing layout', kind: 'layout' },
+    { id: 'moodboard', label: 'Moodboard', kind: 'mood' }
+  ];
+
+  /* ---------------- Data ---------------- */
   const SEGMENTS = [
-    { id: 'b2c', label: 'For homeowners', short: 'Homeowners', icon: 'home' },
-    { id: 'b2b', label: 'For business', short: 'Business', icon: 'build' },
-    { id: 'partner', label: 'Partners', short: 'Partners', icon: 'sparkles' }
+    { id: 'b2c', label: 'For homeowners', icon: 'home' },
+    { id: 'b2b', label: 'For business', icon: 'build' },
+    { id: 'partner', label: 'Partners', icon: 'sparkles' }
   ];
 
   const B2C_PLANS = [
-    {
-      id: 'essential', name: 'Essential', tag: 'AI-assisted', price: '₹4,999', unit: '/ project', servicePlan: 'ai',
+    { id: 'essential', name: 'Essential', tag: 'AI-assisted', price: '₹4,999', unit: '/ project', servicePlan: 'ai',
       desc: 'Design, price and build with Planex AI beside you at every step.',
       features: ['Floor plan → spaces → moodboard', 'Room-wise scope of work', 'Firm BOQ priced in ₹', 'A-01–A-04 drawings & 13 trade dockets', 'Vendor-ready scope sheets', 'Change anytime'],
-      cta: 'Start free'
-    },
-    {
-      id: 'signature', name: 'Signature', tag: 'AI + remote expert', price: '₹24,999', unit: '/ project', popular: true, servicePlan: 'remote',
+      cta: 'Start free' },
+    { id: 'signature', name: 'Signature', tag: 'AI + remote expert', price: '₹24,999', unit: '/ project', popular: true, servicePlan: 'remote',
       desc: 'The AI journey plus a remote interior expert to review and sign off.',
       features: ['Everything in Essential', '1:1 video consult with an expert', 'Expert review of design & scope', 'Drawing set sign-off', 'Vendor quote comparison', '3 revision cycles'],
-      cta: 'Choose Signature'
-    },
-    {
-      id: 'bespoke', name: 'Bespoke', tag: 'AI + on-ground', price: 'Custom', unit: '', servicePlan: 'onground',
+      cta: 'Choose Signature' },
+    { id: 'bespoke', name: 'Bespoke', tag: 'AI + on-ground', price: 'Custom', unit: '', servicePlan: 'onground',
       desc: 'Hands-on delivery with on-ground support from survey to handover.',
       features: ['Everything in Signature', 'Site visits & measurements', 'Contractor coordination', 'Stage-wise QC & snag closure', 'Dedicated project manager', 'Handover documentation'],
-      cta: 'Talk to us'
-    }
+      cta: 'Talk to us' }
   ];
 
   const B2B_PLANS = [
-    {
-      id: 'studio', name: 'Studio', tag: 'Independent designers', price: '₹49,999', unit: '/ year',
+    { id: 'studio', name: 'Studio', tag: 'Independent designers', price: '₹49,999', unit: '/ year',
       desc: 'Win more work and cut drawing time with a full AI back office.',
       features: ['Up to 20 projects / year', 'Client-ready drawings & BOQ', 'White-label PDF exports', 'Scope sheets & RFQ packs', 'Priority AI capacity', 'Email support'],
-      cta: 'Start Studio'
-    },
-    {
-      id: 'firm', name: 'Firm', tag: 'Interior firms & contractors', price: '₹1,49,999', unit: '/ year', popular: true,
+      cta: 'Start Studio' },
+    { id: 'firm', name: 'Firm', tag: 'Interior firms & contractors', price: '₹1,49,999', unit: '/ year', popular: true,
       desc: 'Standardise scope, price every job on the same basis and protect margin.',
       features: ['Up to 100 projects / year', 'Team seats & shared libraries', 'Procurement + vendor quotes', 'Spec-compliance checks', 'Branded templates', 'API access', 'Dedicated success manager'],
-      cta: 'Start Firm'
-    },
-    {
-      id: 'enterprise', name: 'Enterprise', tag: 'Developers, hospitality & retail', price: 'Custom', unit: '',
+      cta: 'Start Firm' },
+    { id: 'enterprise', name: 'Enterprise', tag: 'Developers, hospitality & retail', price: 'Custom', unit: '',
       desc: 'Roll out Planex across projects, teams and rate cards.',
       features: ['Unlimited projects', 'SSO & role controls', 'Custom rate cards & libraries', 'Multi-project dashboards', 'Onboarding & training', 'SLA & priority support'],
-      cta: 'Talk to sales'
-    }
+      cta: 'Talk to sales' }
   ];
 
   const B2C_VALUE = [
@@ -99,7 +332,7 @@ window.PlanexModules.Home = (function () {
   ];
 
   const HOW = [
-    { n: '1', title: 'Add your floor plan', desc: 'Upload a plan or image. Planex AI reads the rooms and areas; you confirm the dimensions.' },
+    { n: '1', title: 'Add your floor plan', desc: 'Upload a plan or image. Planex reads the rooms and areas; you confirm the dimensions.' },
     { n: '2', title: 'Design & specify', desc: 'Set the look for each space. Planex turns it into a scope, a BOQ and trade-wise dockets.' },
     { n: '3', title: 'Price & build', desc: 'Issue scope sheets, compare vendor quotes on one basis, then track execution to handover.' }
   ];
@@ -125,7 +358,7 @@ window.PlanexModules.Home = (function () {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function choosePlan(planList, plan) {
+  function choosePlan(plan) {
     if (seg === 'partner') { scrollTo('#partner'); return; }
     if (seg === 'b2c') {
       if (plan.servicePlan) store().setServicePlan(plan.servicePlan);
@@ -134,7 +367,6 @@ window.PlanexModules.Home = (function () {
       enterApp();
       return;
     }
-    // B2B
     store().addLead({ segment: 'b2b', plan: plan.id, planName: plan.name });
     window.PlanexUI.toast(plan.name + ' selected — our team will help you get set up.');
     enterApp();
@@ -144,23 +376,12 @@ window.PlanexModules.Home = (function () {
     const val = function (id) { const el = container.querySelector(id); return el ? String(el.value || '').trim() : ''; };
     const lead = {
       segment: 'partner',
-      company: val('#hp-company'),
-      contactName: val('#hp-name'),
-      email: val('#hp-email'),
-      phone: val('#hp-phone'),
-      city: val('#hp-city'),
-      category: val('#hp-category'),
-      volume: val('#hp-volume'),
-      message: val('#hp-message')
+      company: val('#hp-company'), contactName: val('#hp-name'), email: val('#hp-email'),
+      phone: val('#hp-phone'), city: val('#hp-city'), category: val('#hp-category'),
+      volume: val('#hp-volume'), message: val('#hp-message')
     };
-    if (!lead.company || !lead.contactName || !lead.email) {
-      window.PlanexUI.toast('Please add company, name and email.');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) {
-      window.PlanexUI.toast('Please enter a valid email.');
-      return;
-    }
+    if (!lead.company || !lead.contactName || !lead.email) { window.PlanexUI.toast('Please add company, name and email.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) { window.PlanexUI.toast('Please enter a valid email.'); return; }
     const consent = container.querySelector('#hp-consent');
     if (consent && !consent.checked) { window.PlanexUI.toast('Please accept the contact consent.'); return; }
     const saved = store().addLead(lead);
@@ -178,6 +399,110 @@ window.PlanexModules.Home = (function () {
     window.PlanexUI.toast('Enquiry received. We will be in touch.');
   }
 
+  /* ---------------- Walkthrough player ---------------- */
+  function renderStage(container) {
+    const stage = container.querySelector('#demo-stage');
+    const cap = container.querySelector('#demo-caption');
+    if (!stage) return;
+    const step = DEMO[demoStep];
+    const titleEl = container.querySelector('#demo-title');
+    if (titleEl) titleEl.textContent = step.title;
+    if (step.kind === 'canvas') {
+      stage.innerHTML = `<div class="demo-canvas-wrap"><canvas id="demo-canvas"></canvas></div>`;
+      const cv = stage.querySelector('#demo-canvas');
+      if (cv) {
+        if (step.mood) drawMoodboardInto(cv);
+        else if (step.unit && window.PlanexDetailEngine) { try { window.PlanexDetailEngine.drawUnit(cv, SAMPLE_UNIT); } catch (e) { /* ignore */ } }
+        else drawSheetInto(cv, step.sheet || 'main');
+      }
+    } else {
+      stage.innerHTML = step.html ? step.html() : '';
+    }
+    if (cap) {
+      cap.innerHTML = `
+        <div class="demo-cap-col"><span class="demo-cap-k">You</span><p>${esc(step.you)}</p></div>
+        <div class="demo-cap-col"><span class="demo-cap-k accent">Planex AI</span><p>${esc(step.planex)}</p></div>
+        <div class="demo-cap-col"><span class="demo-cap-k">You get</span><p>${esc(step.out)}</p></div>`;
+    }
+    container.querySelectorAll('[data-demo-step]').forEach(function (b, i) { b.classList.toggle('active', i === demoStep); });
+    const count = container.querySelector('#demo-count');
+    if (count) count.textContent = (demoStep + 1) + ' / ' + DEMO.length;
+    const fill = container.querySelector('#demo-fill');
+    if (fill) fill.style.width = '0%';
+  }
+
+  function setStep(container, n) {
+    demoStep = (n + DEMO.length) % DEMO.length;
+    elapsed = 0;
+    renderStage(container);
+  }
+
+  function startDemo(container) {
+    stopDemo();
+    demoPlaying = true;
+    updatePlayButton(container);
+    elapsed = 0;
+    demoTimer = setInterval(function () {
+      if (!demoPlaying) return;
+      if (!container.querySelector('#demo-stage')) { stopDemo(); return; }
+      elapsed += 60;
+      const fill = container.querySelector('#demo-fill');
+      const pct = Math.min(1, elapsed / STEP_MS);
+      if (fill) fill.style.width = (pct * 100) + '%';
+      if (pct >= 1) { setStep(container, demoStep + 1); elapsed = 0; }
+    }, 60);
+  }
+  function stopDemo() { if (demoTimer) { clearInterval(demoTimer); demoTimer = null; } demoPlaying = false; }
+  function updatePlayButton(container) {
+    const b = container.querySelector('#demo-play');
+    if (b) b.innerHTML = demoPlaying ? '❚❚ &nbsp;Pause' : '▶ &nbsp;Play';
+  }
+
+  /* ---------------- Gallery ---------------- */
+  function renderGallery(container) {
+    const stage = container.querySelector('#gallery-stage');
+    if (!stage) return;
+    const tab = GALLERY.filter(function (g) { return g.id === galleryTab; })[0] || GALLERY[0];
+    stage.innerHTML = `<div class="demo-canvas-wrap"><canvas id="gallery-canvas"></canvas></div>`;
+    const cv = stage.querySelector('#gallery-canvas');
+    if (!cv) return;
+    if (tab.kind === 'mood') drawMoodboardInto(cv);
+    else if (tab.kind === 'sheet') drawSheetInto(cv, tab.id);
+    else if (tab.kind === 'unit' && window.PlanexDetailEngine) { try { window.PlanexDetailEngine.drawUnit(cv, SAMPLE_UNIT); } catch (e) { /* ignore */ } }
+    else if (tab.kind === 'layout' && window.PlanexLayoutEngine) {
+      try {
+        const room = SAMPLE_ROOMS.filter(function (r) { return /kitchen|bath|living/i.test(r.name); })[0] || SAMPLE_ROOMS[0];
+        window.PlanexLayoutEngine.draw(cv, tab.id, room);
+      } catch (e) { /* ignore */ }
+    }
+    container.querySelectorAll('[data-gallery]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-gallery') === tab.id); });
+  }
+
+  /* ---------------- Hero canvas ---------------- */
+  function drawHero(container) {
+    const cv = container.querySelector('#hero-canvas');
+    if (!cv || !cv.isConnected) return;
+    const kinds = ['main', 'furniture', 'ceiling', 'lighting'];
+    cv.style.opacity = '0';
+    setTimeout(function () {
+      if (!cv.isConnected) return;
+      const kind = kinds[heroIdx % kinds.length];
+      drawSheetInto(cv, kind);
+      const label = container.querySelector('#hero-kind');
+      if (label) label.textContent = (window.PlanexDrawingEngine && window.PlanexDrawingEngine.SHEETS[kind] ? window.PlanexDrawingEngine.SHEETS[kind].no + ' ' + window.PlanexDrawingEngine.SHEETS[kind].title : '');
+      cv.style.opacity = '1';
+    }, 180);
+  }
+  function startHero(container) {
+    heroIdx = 0;
+    drawHero(container);
+    if (heroTimer) clearInterval(heroTimer);
+    heroTimer = setInterval(function () {
+      if (!container.querySelector('#hero-canvas')) { clearInterval(heroTimer); heroTimer = null; return; }
+      heroIdx++; drawHero(container);
+    }, HERO_MS);
+  }
+
   /* ---------------- Sections ---------------- */
   function header() {
     return `
@@ -188,10 +513,11 @@ window.PlanexModules.Home = (function () {
             <span class="brand-text"><span class="brand-name">Planex AI</span><span class="brand-tag">Plan &amp; Execute</span></span>
           </button>
           <nav class="home-links">
+            <button data-scroll="#demo">See it work</button>
+            <button data-scroll="#gallery">Product</button>
             <button data-seg="b2c">Homeowners</button>
             <button data-seg="b2b">Business</button>
             <button data-seg="partner">Partners</button>
-            <button data-scroll="#how">How it works</button>
             <button data-scroll="#plans">Pricing</button>
           </nav>
           <div class="home-nav-actions">
@@ -214,7 +540,7 @@ window.PlanexModules.Home = (function () {
             <p class="home-hero-sub">Planex AI turns a floor plan into a fully specified, priced, buildable interior — drawings, a GST-ready BOQ, trade dockets and vendor-ready scope sheets. Every quote lands on the same basis, and nothing is left to assumption.</p>
             <div class="home-cta-row">
               <button class="btn btn-lg btn-primary" data-enter="1">${ic('arrowRight')} Start your project — free</button>
-              <button class="btn btn-lg btn-secondary" data-seg="b2b">For business</button>
+              <button class="btn btn-lg btn-secondary" data-scroll="#demo" data-demo-play="1">▶&nbsp; Watch the walkthrough</button>
             </div>
             <div class="home-trustline">
               <span>${ic('check')} No card needed</span>
@@ -222,18 +548,14 @@ window.PlanexModules.Home = (function () {
               <span>${ic('check')} GST-ready BOQ</span>
             </div>
           </div>
-          <div class="home-hero-art" aria-hidden="true">
+          <div class="home-hero-art">
             <div class="home-art-card">
-              <div class="home-art-head"><span class="home-dot"></span><span class="home-art-title">Living Room · 5.4 × 4.2 m</span><span class="badge badge-success">Validated</span></div>
-              <div class="home-art-plan">
-                <div class="hp-room r1">Living</div><div class="hp-room r2">Dining</div>
-                <div class="hp-room r3">Kitchen</div><div class="hp-room r4">Bedroom</div>
-              </div>
+              <div class="home-art-head"><span class="home-dot"></span><span class="home-art-title">Live from Planex <span class="faint text-xs" id="hero-kind">A-01 Main Layout</span></span><span class="badge badge-success">Live</span></div>
+              <div class="hero-canvas-wrap"><canvas id="hero-canvas"></canvas></div>
               <div class="home-art-rows">
                 <div class="home-art-row"><span>Scope</span><strong>22 packages</strong></div>
                 <div class="home-art-row"><span>BOQ</span><strong>₹36.7L · GST ready</strong></div>
                 <div class="home-art-row"><span>Dockets</span><strong>13 trades</strong></div>
-                <div class="home-art-row"><span>Scope sheets</span><strong>RFQ ready</strong></div>
                 <div class="home-art-row"><span>Drawings</span><strong>A-01 – A-04</strong></div>
               </div>
             </div>
@@ -250,16 +572,60 @@ window.PlanexModules.Home = (function () {
       </section>`;
   }
 
-  function segmentTabs() {
+  function demoSection() {
     return `
-      <div class="home-segs">
-        ${SEGMENTS.map(function (s) {
-          return `<button class="home-seg ${seg === s.id ? 'active' : ''}" data-seg="${s.id}">
-            <span class="home-seg-ico">${ic(s.icon)}</span>
-            <span class="home-seg-label">${esc(s.label)}</span>
-          </button>`;
-        }).join('')}
-      </div>`;
+      <section class="home-section" id="demo">
+        <div class="home-seg-head" style="max-width:820px;">
+          <div class="home-eyebrow">${ic('sparkles')} Interactive walkthrough</div>
+          <h2 class="home-h2" style="margin-top:10px;">See Planex work, end to end.</h2>
+          <p class="muted" style="margin-top:10px;">Eight steps from a floor plan to a snag-free handover. Press play — every frame below is generated by Planex from one plan.</p>
+        </div>
+        <div class="demo-player">
+          <div class="demo-stage-head">
+            <div class="demo-stage-title" id="demo-title"></div>
+            <div class="demo-stage-count" id="demo-count">1 / ${DEMO.length}</div>
+          </div>
+          <div class="demo-stage" id="demo-stage"></div>
+          <div class="demo-caption" id="demo-caption"></div>
+          <div class="demo-controls">
+            <div class="demo-btns">
+              <button class="btn btn-secondary btn-sm" id="demo-prev" aria-label="Previous">←</button>
+              <button class="btn btn-primary btn-sm" id="demo-play">❚❚ &nbsp;Pause</button>
+              <button class="btn btn-secondary btn-sm" id="demo-next" aria-label="Next">→</button>
+            </div>
+            <div class="demo-progress"><div class="demo-progress-fill" id="demo-fill"></div></div>
+          </div>
+          <div class="demo-steps" id="demo-steps">
+            ${DEMO.map(function (s, i) {
+              return `<button class="demo-step" data-demo-step="${i}"><span class="demo-step-n">${i + 1}</span>${esc(s.label)}</button>`;
+            }).join('')}
+          </div>
+        </div>
+      </section>`;
+  }
+
+  function gallerySection() {
+    return `
+      <section class="home-section" id="gallery">
+        <div class="home-seg-head" style="max-width:820px;">
+          <div class="home-eyebrow">${ic('docket')} The output</div>
+          <h2 class="home-h2" style="margin-top:10px;">Every document, from one plan.</h2>
+          <p class="muted" style="margin-top:10px;">Tap through the drawings and schedules Planex produces — the same documents your contractor, vendors and site team use.</p>
+        </div>
+        <div class="gallery">
+          <div class="gallery-tabs">
+            ${GALLERY.map(function (g) { return `<button class="gallery-tab ${g.id === galleryTab ? 'active' : ''}" data-gallery="${g.id}">${esc(g.label)}</button>`; }).join('')}
+          </div>
+          <div class="gallery-stage" id="gallery-stage"></div>
+        </div>
+      </section>`;
+  }
+
+  function segmentTabs() {
+    return `<div class="home-segs">${SEGMENTS.map(function (s) {
+      return `<button class="home-seg ${seg === s.id ? 'active' : ''}" data-seg="${s.id}">
+        <span class="home-seg-ico">${ic(s.icon)}</span><span class="home-seg-label">${esc(s.label)}</span></button>`;
+    }).join('')}</div>`;
   }
 
   function valueCards(list) {
@@ -268,8 +634,7 @@ window.PlanexModules.Home = (function () {
     }).join('')}</div>`;
   }
 
-  function planCards(list, isPartner) {
-    if (isPartner) return '';
+  function planCards(list) {
     return `<div class="home-plans">${list.map(function (p) {
       return `<div class="home-plan ${p.popular ? 'popular' : ''}">
         ${p.popular ? '<span class="home-plan-flag">Most popular</span>' : ''}
@@ -319,10 +684,7 @@ window.PlanexModules.Home = (function () {
           </div>
           <div class="field" style="margin-top:12px;">
             <label>Monthly project volume</label>
-            <select class="select" id="hp-volume">
-              <option value="">Select</option>
-              <option>1–5 projects</option><option>6–20 projects</option><option>21–50 projects</option><option>50+ projects</option>
-            </select>
+            <select class="select" id="hp-volume"><option value="">Select</option><option>1–5 projects</option><option>6–20 projects</option><option>21–50 projects</option><option>50+ projects</option></select>
           </div>
           <div class="field" style="margin-top:12px;"><label>What would you like to build with Planex?</label><textarea class="textarea" id="hp-message" rows="3" placeholder="Tell us briefly…"></textarea></div>
           <label class="home-consent"><input type="checkbox" id="hp-consent"> I agree to be contacted about a Planex partnership.</label>
@@ -334,12 +696,9 @@ window.PlanexModules.Home = (function () {
   function segmentSection() {
     if (seg === 'partner') {
       return `<section class="home-section" id="segment">${segmentTabs()}
-        <div class="home-seg-head">
-          <h2 class="home-h2">Build the category with us.</h2>
-          <p class="muted">Planex sits at the moment of design — where materials, vendors and technology get decided.</p>
-        </div>
-        ${partnerForm()}
-      </section>`;
+        <div class="home-seg-head"><h2 class="home-h2">Build the category with us.</h2>
+        <p class="muted">Planex sits at the moment of design — where materials, vendors and technology get decided.</p></div>
+        ${partnerForm()}</section>`;
     }
     const isB2B = seg === 'b2b';
     return `<section class="home-section" id="segment">
@@ -355,7 +714,7 @@ window.PlanexModules.Home = (function () {
         <h2 class="home-h2">${isB2B ? 'Business plans' : 'Homeowner plans'}</h2>
         <p class="muted">${isB2B ? 'Per-year plans that scale with your practice.' : 'Transparent, project-based pricing. Change anytime.'}</p>
       </div>
-      ${planCards(isB2B ? B2B_PLANS : B2C_PLANS, false)}
+      ${planCards(isB2B ? B2B_PLANS : B2C_PLANS)}
     </section>`;
   }
 
@@ -367,8 +726,7 @@ window.PlanexModules.Home = (function () {
         ${DELIVERABLES.map(function (d) {
           return `<div class="home-deliver card"><div class="home-value-ico">${ic(d.icon)}</div><div><strong>${esc(d.title)}</strong><p class="muted text-xs">${esc(d.desc)}</p></div></div>`;
         }).join('')}
-      </div>
-    </section>`;
+      </div></section>`;
   }
 
   function how() {
@@ -378,8 +736,7 @@ window.PlanexModules.Home = (function () {
         ${HOW.map(function (s) {
           return `<div class="home-how-step"><div class="home-how-num">${esc(s.n)}</div><h3>${esc(s.title)}</h3><p class="muted text-sm">${esc(s.desc)}</p></div>`;
         }).join('')}
-      </div>
-    </section>`;
+      </div></section>`;
   }
 
   function trust() {
@@ -387,42 +744,33 @@ window.PlanexModules.Home = (function () {
       <div class="home-seg-head"><h2 class="home-h2">Confidence, built in.</h2><p class="muted">Why professionals and homeowners trust the Planex pack.</p></div>
       <div class="home-value-grid">${GUARANTEES.map(function (g) {
         return `<div class="home-value card"><div class="home-value-ico">${ic('check')}</div><h3>${esc(g.title)}</h3><p class="muted text-sm">${esc(g.desc)}</p></div>`;
-      }).join('')}</div>
-    </section>`;
+      }).join('')}</div></section>`;
   }
 
   function faq() {
     return `<section class="home-section" id="faq">
       <div class="home-seg-head"><h2 class="home-h2">Questions, answered.</h2></div>
       <div class="home-faq">
-        ${FAQ.map(function (f) {
-          return `<details class="home-faq-item"><summary>${esc(f.q)}</summary><p class="muted text-sm">${esc(f.a)}</p></details>`;
-        }).join('')}
-      </div>
-    </section>`;
+        ${FAQ.map(function (f) { return `<details class="home-faq-item"><summary>${esc(f.q)}</summary><p class="muted text-sm">${esc(f.a)}</p></details>`; }).join('')}
+      </div></section>`;
   }
 
   function ctaBand() {
     return `<section class="home-cta-band">
-      <div>
-        <h2 class="home-h2" style="color:inherit;">Start with your floor plan.</h2>
-        <p style="opacity:.85;margin-top:6px;">Free to begin. See your rooms, scope and cost take shape in minutes.</p>
-      </div>
+      <div><h2 class="home-h2" style="color:inherit;">Start with your floor plan.</h2>
+      <p style="opacity:.85;margin-top:6px;">Free to begin. See your rooms, scope and cost take shape in minutes.</p></div>
       <div class="home-cta-band-actions">
         <button class="btn btn-lg" data-enter="1" style="background:#fff;color:#18181b;">${ic('arrowRight')} Start free</button>
         <button class="btn btn-lg btn-secondary" data-seg="partner" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4);">Partner with us</button>
-      </div>
-    </section>`;
+      </div></section>`;
   }
 
   function footer() {
     return `<footer class="home-footer">
-      <div class="home-footer-brand">
-        <span class="brand-mark">${ic('home')}</span>
-        <div><strong>Planex AI</strong><p class="faint text-xs">Plan &amp; Execute · Interiors for India</p></div>
-      </div>
+      <div class="home-footer-brand"><span class="brand-mark">${ic('home')}</span>
+        <div><strong>Planex AI</strong><p class="faint text-xs">Plan &amp; Execute · Interiors for India</p></div></div>
       <div class="home-footer-cols">
-        <div><strong>Product</strong><button data-enter="1">Homeowners</button><button data-seg="b2b">Business</button><button data-scroll="#how">How it works</button><button data-scroll="#plans">Pricing</button></div>
+        <div><strong>Product</strong><button data-scroll="#demo">See it work</button><button data-scroll="#gallery">Output</button><button data-scroll="#plans">Pricing</button></div>
         <div><strong>Partners</strong><button data-seg="partner">Partner programme</button><a href="mailto:partners@planex.ai">partners@planex.ai</a></div>
         <div><strong>Company</strong><a href="#home-top" data-scroll="#home-top">Back to top</a><button data-nav="execution">Execution</button></div>
       </div>
@@ -432,10 +780,17 @@ window.PlanexModules.Home = (function () {
 
   /* ---------------- Render ---------------- */
   function render(container) {
+    // reset timers from any previous render
+    if (heroTimer) { clearInterval(heroTimer); heroTimer = null; }
+    stopDemo();
+    elapsed = 0;
+
     container.innerHTML = `
       <div class="home">
         ${header()}
         ${hero()}
+        ${demoSection()}
+        ${gallerySection()}
         ${segmentSection()}
         ${deliverables()}
         ${how()}
@@ -445,28 +800,30 @@ window.PlanexModules.Home = (function () {
         ${footer()}
       </div>`;
     bind(container);
+    startHero(container);
+    renderStage(container);
+    renderGallery(container);
+    startDemo(container);
   }
 
   function bind(container) {
-    container.querySelectorAll('[data-enter]').forEach(function (b) {
-      b.addEventListener('click', function () { enterApp(); });
-    });
+    container.querySelectorAll('[data-enter]').forEach(function (b) { b.addEventListener('click', function () { enterApp(); }); });
     container.querySelectorAll('[data-scroll]').forEach(function (b) {
-      b.addEventListener('click', function () { scrollTo(b.getAttribute('data-scroll')); });
+      b.addEventListener('click', function () {
+        const play = b.getAttribute('data-demo-play');
+        if (play) { if (!demoPlaying) startDemo(container); }
+        scrollTo(b.getAttribute('data-scroll'));
+      });
     });
     container.querySelectorAll('[data-seg]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        seg = b.getAttribute('data-seg');
-        window.PlanexApp.renderView();
-        scrollTo('#segment');
-      });
+      b.addEventListener('click', function () { seg = b.getAttribute('data-seg'); window.PlanexApp.renderView(); scrollTo('#segment'); });
     });
     container.querySelectorAll('[data-plan]').forEach(function (b) {
       b.addEventListener('click', function () {
         const id = b.getAttribute('data-plan');
         const list = seg === 'b2b' ? B2B_PLANS : B2C_PLANS;
         const plan = list.filter(function (p) { return p.id === id; })[0];
-        if (plan) choosePlan(list, plan);
+        if (plan) choosePlan(plan);
       });
     });
     const theme = container.querySelector('#home-theme');
@@ -478,6 +835,24 @@ window.PlanexModules.Home = (function () {
     });
     const submit = container.querySelector('#hp-submit');
     if (submit) submit.addEventListener('click', function () { submitPartner(container); });
+
+    // demo controls
+    const prev = container.querySelector('#demo-prev');
+    if (prev) prev.addEventListener('click', function () { setStep(container, demoStep - 1); if (demoPlaying) startDemo(container); });
+    const next = container.querySelector('#demo-next');
+    if (next) next.addEventListener('click', function () { setStep(container, demoStep + 1); if (demoPlaying) startDemo(container); });
+    const play = container.querySelector('#demo-play');
+    if (play) play.addEventListener('click', function () {
+      if (demoPlaying) { stopDemo(); updatePlayButton(container); }
+      else { startDemo(container); }
+    });
+    container.querySelectorAll('[data-demo-step]').forEach(function (b) {
+      b.addEventListener('click', function () { setStep(container, Number(b.getAttribute('data-demo-step'))); if (demoPlaying) startDemo(container); });
+    });
+    // gallery tabs
+    container.querySelectorAll('[data-gallery]').forEach(function (b) {
+      b.addEventListener('click', function () { galleryTab = b.getAttribute('data-gallery'); renderGallery(container); });
+    });
   }
 
   return { render: render };
