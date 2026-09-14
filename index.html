@@ -167,5 +167,15 @@
   <script src="js/components/artifact-rail.js"></script>
   <script src="js/components/copilot-drawer.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    // Initialize Planex Lifecycle Engine if container exists
+    (function() {
+      var container = document.getElementById('lifecycle-root');
+      if (container && window.PlanexLifecycleEngine) {
+        window.planexEngine = new PlanexLifecycleEngine('lifecycle-root');
+      }
+    })();
+  </script>
+  <script src="js/planex-lifecycle.js"></script>
 </body>
 </html>
