@@ -1968,3 +1968,390 @@ html.landing-pre .view { padding: 0; }
   background: var(--accent, #4f46e5);
   color: white;
 }
+
+/* ============================================================
+   Planex Lifecycle Engine — Stage Views & BoQ
+   ============================================================ */
+
+.stage-view {
+  padding: 24px;
+}
+
+.panel-section h4,
+.selector-card h4,
+.finish-selectors h3,
+.boq-header-row h3,
+.ergonomic-card h4,
+.handover-checklist h3,
+.build-fork-panel h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+/* --- Blueprint View --- */
+.blueprint-view .grid-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.blueprint-view .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.blueprint-view .form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.blueprint-view .form-group input,
+.blueprint-view .form-group select {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #d1d5db);
+  font-size: 14px;
+  background: var(--surface, #ffffff);
+  color: var(--text-primary, #111827);
+}
+
+/* --- Layout View --- */
+.ergonomic-card {
+  background: var(--surface-tertiary, #f9fafb);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.clearance-gauge {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.gauge-val {
+  display: block;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.gauge-val.text-warn {
+  color: #f59e0b;
+}
+
+.gauge-val.text-ok {
+  color: #10b981;
+}
+
+.gauge-hint {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  margin: 8px 0 0;
+}
+
+.slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slider-wrap label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #374151);
+}
+
+.slider-wrap input[type="range"] {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  background: var(--border, #d1d5db);
+  border-radius: 3px;
+  outline: none;
+}
+
+.slider-wrap input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #4f46e5);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* --- Build Fork Panel --- */
+.build-fork-panel {
+  padding: 24px;
+}
+
+.build-fork-panel .fork-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.fork-card {
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--surface, #ffffff);
+  position: relative;
+  overflow: hidden;
+}
+
+.fork-card:hover {
+  border-color: var(--accent, #4f46e5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.fork-card.selected {
+  border-color: var(--accent, #4f46e5);
+  background: rgba(79, 70, 229, 0.05);
+}
+
+.fork-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.fork-card h4 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.fork-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.fork-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fork-bullets li {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  display: flex;
+  align-items: center;
+  gap:6px;
+}
+
+.fork-bullets li::before {
+  content: "✓";
+  color: var(--accent, #4f46e5);
+  font-size: 11px;
+}
+
+.fork-card .badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent, #4f46e5);
+  color: white;
+}
+
+/* --- Finish View --- */
+.finish-selectors {
+  display: grid;
+  gap: 24px;
+}
+
+.selector-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.sub-hint {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 16px;
+}
+
+.option-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pill-btn {
+  padding: 10px 18px;
+  border-radius: 24px;
+  border: 1px solid var(--border, #d1d5db);
+  background: var(--surface-tertiary, #f9fafb);
+  color: var(--text-primary, #374151);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pill-btn:hover {
+  background: var(--surface, #ffffff);
+  border-color: var(--accent, #4f46e5);
+}
+
+.pill-btn.selected {
+  background: var(--accent, #4f46e5);
+  color: white;
+  border-color: var(--accent, #4f46e5);
+}
+
+/* --- Cost/BoQ View --- */
+.cost-view {
+  padding: 0 24px 24px;
+}
+
+.boq-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--border, #e5e7eb);
+}
+
+.boq-header-row h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary, #111827);
+}
+
+.boq-header-row p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.boq-summary-metric span {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent, #4f46e5);
+}
+
+.boq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.boq-table thead th {
+  text-align: left;
+  padding: 12px 16px;
+  background: var(--surface-tertiary, #f3f4f6);
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+  border-bottom: 2px solid var(--border, #e5e7eb);
+}
+
+.boq-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.boq-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.boq-table strong {
+  color: var(--text-primary, #111827);
+}
+
+.boq-table small {
+  color: var(--text-secondary, #6b7280);
+  font-weight: 400;
+}
+
+/* --- Handover View --- */
+.handover-view {
+  padding: 0 24px 24px;
+}
+
+.handover-checklist h3 {
+  margin: 0 0 8px;
+}
+
+.handover-checklist p {
+  margin: 0 0 24px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 14px;
+}
+
+.deliverables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.pack-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+}
+
+.file-icon {
+  font-size: 28px;
+}
+
+.pack-card strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: var(--text-primary, #111827);
+}
+
+.pack-card p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.btn-dl {
+  margin-left: auto;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #d1d5eb);
+  background: var(--surface-tertiary, #f3f4f6);
+  color: var(--text-primary, #374151);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-dl:hover {
+  background: var(--accent, #4f46e5);
+  color: white;
+  border-color: var(--accent, #4f46e5);
+}

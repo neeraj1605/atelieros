@@ -238,50 +238,8 @@ class PlanexLifecycleEngine {
               </div>
             </div>
 
-            <!-- DYNAMIC STAGE 3 FORK WORKFLOW -->
-            ${this.state.currentStage === 3 ? `
-              <div class="build-fork-panel">
-                <h3>Select Furniture Construction Method</h3>
-                <div class="fork-cards">
-                  <div class="fork-card ${activeSpace.buildMethod === 'modular' ? 'selected' : ''}"
-                       onclick="window.planexEngine.setBuildMethod('modular')">
-                    <div class="fork-icon">🏭</div>
-                    <h4>Factory Modular</h4>
-                    <p class="fork-desc">Engineered panels, laser edge-banding, standard carcasses. Clean 3-day on-site assembly.</p>
-                    <ul class="fork-bullets">
-                      <li>Lead time: 21 days</li>
-                      <li>Zero dust & noise on-site</li>
-                      <li>Standard 450/600/900mm carcass grid</li>
-                    </ul>
-                    <span class="badge">${activeSpace.buildMethod === 'modular' ? 'Active Choice' : 'Select'}</span>
-                  </div>
-
-                  <div class="fork-card ${activeSpace.buildMethod === 'carpentry' ? 'selected' : ''}"
-                       onclick="window.planexEngine.setBuildMethod('carpentry')">
-                    <div class="fork-icon">🪚</div>
-                    <h4>Site Carpentry</h4>
-                    <p class="fork-desc">Built completely inside the room using calibrated plywood sheets, adhesives, and manual joinery.</p>
-                    <ul class="fork-bullets">
-                      <li>Lead time: 45–60 days</li>
-                      <li>Requires society noise permissions</li>
-                      <li>Handles uneven walls & custom niches</li>
-                    </ul>
-                    <span class="badge">${activeSpace.buildMethod === 'carpentry' ? 'Active Choice' : 'Select'}</span>
-                  </div>
-                </div>
-              </div>
-            ` : `
-              <div class="canvas-mock">
-                <div class="canvas-placeholder-content">
-                  <span class="room-tag">${activeSpace.name} (${activeSpace.buildMethod.toUpperCase()})</span>
-                  <div class="metric-readout">
-                    <div><strong>Clearance:</strong> ${activeSpace.clearanceMm} mm</div>
-                    <div><strong>Substrate:</strong> ${activeSpace.substrate.toUpperCase()}</div>
-                    <div><strong>Est. Cost:</strong> ₹${activeSpace.currentEstimate.toLocaleString('en-IN')}</div>
-                  </div>
-                </div>
-              </div>
-            `}
+            <!-- DYNAMIC STAGE BODY -->
+            ${this.renderStageBody(activeSpace)}
 
             <!-- STAGE ADVANCE ACTION BAR -->
             <div class="stage-footer">
@@ -327,6 +285,241 @@ class PlanexLifecycleEngine {
     `;
   }
 }
+
+// =============================================================================
+// Extension: Stage-Specific Views & BoQ Generator (PlanexLifecycleEngine)
+// =============================================================================
+
+PlanexLifecycleEngine.prototype.renderStageBody = function(activeSpace) {
+  switch (this.state.currentStage) {
+    case 1: // Blueprint
+      return `
+        <div class="stage-view blueprint-view">
+          <div class="panel-section">
+            <h4>Spatial Footprint & Site Parameters</h4>
+            <div class="grid-form">
+              <div class="form-group">
+                <label>Carpet Area (sq. ft.)</label>
+                <input type="number" value="${activeSpace.sqft}" 
+                  onchange="window.planexEngine.updateSpaceProp('sqft', Number(this.value))" />
+              </div>
+              <div class="form-group">
+                <label>City & Tier Zone</label>
+                <input type="text" value="${this.state.project.city}" disabled />
+              </div>
+              <div class="form-group">
+                <label>Wet Zone / Plumbing Exists</label>
+                <select onchange="window.planexEngine.updateSpaceProp('hasWetZonePlumbing', this.value === 'true')">
+                  <option value="true" ${activeSpace.hasWetZonePlumbing ? 'selected' : ''}>Yes (Sinks / RO line present)</option>
+                  <option value="false" ${!activeSpace.hasWetZonePlumbing ? 'selected' : ''}>No (Dry carcass only)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+    case 2: // Layout & Ergonomics
+      return `
+        <div class="stage-view layout-view">
+          <div class="ergonomic-card">
+            <h4>Circulation & Clearance Matrix</h4>
+            <div class="clearance-gauge">
+              <span class="gauge-val ${activeSpace.clearanceMm < 900 ? 'text-warn' : 'text-ok'}">
+                ${activeSpace.clearanceMm} mm
+              </span>
+              <p class="gauge-hint">IS Code / Ergonomic Walkway standard: min 900mm (1050mm for two-way kitchen corridor).</p>
+            </div>
+            <div class="slider-wrap">
+              <label>Corridor Width: ${activeSpace.clearanceMm} mm</label>
+              <input type="range" min="700" max="1400" step="10" value="${activeSpace.clearanceMm}" 
+                oninput="window.planexEngine.updateSpaceProp('clearanceMm', Number(this.value))" />
+            </div>
+          </div>
+        </div>`;
+
+    case 3: // Build Selection (modular vs carpentry fork)
+      return `
+        <div class="build-fork-panel">
+          <h3>Select Furniture Construction Method</h3>
+          <div class="fork-cards">
+            <div class="fork-card ${activeSpace.buildMethod === 'modular' ? 'selected' : ''}"
+                 onclick="window.planexEngine.setBuildMethod('modular')">
+              <div class="fork-icon">🏭</div>
+              <h4>Factory Modular</h4>
+              <p class="fork-desc">Engineered panels, laser edge-banding, standard carcasses. Clean 3-day on-site assembly.</p>
+              <ul class="fork-bullets">
+                <li>Lead time: 21 days</li>
+                <li>Zero dust & noise on-site</li>
+                <li>Standard 450/600/900mm carcass grid</li>
+              </ul>
+              <span class="badge">${activeSpace.buildMethod === 'modular' ? 'Active Choice' : 'Select'}</span>
+            </div>
+
+            <div class="fork-card ${activeSpace.buildMethod === 'carpentry' ? 'selected' : ''}"
+                 onclick="window.planexEngine.setBuildMethod('carpentry')">
+              <div class="fork-icon">🪚</div>
+              <h4>Site Carpentry</h4>
+              <p class="fork-desc">Built completely inside the room using calibrated plywood sheets, adhesives, and manual joinery.</p>
+              <ul class="fork-bullets">
+                <li>Lead time: 45–60 days</li>
+                <li>Requires society noise permissions</li>
+                <li>Handles uneven walls & custom niches</li>
+              </ul>
+              <span class="badge">${activeSpace.buildMethod === 'carpentry' ? 'Active Choice' : 'Select'}</span>
+            </div>
+          </div>
+        </div>`;
+
+    case 4: // Finish & Core Substrate
+      return `
+        <div class="stage-view finish-view">
+          <div class="finish-selectors">
+            <div class="selector-card">
+              <h4>Core Board Substrate</h4>
+              <p class="sub-hint">Substrate selection dictates water resistance and core durability.</p>
+              <div class="option-pills">
+                <button class="pill-btn ${activeSpace.substrate === 'commercial_mr' ? 'selected' : ''}"
+                  onclick="window.planexEngine.updateSpaceProp('substrate', 'commercial_mr')">
+                  MR Commercial (IS 303)
+                </button>
+                <button class="pill-btn ${activeSpace.substrate === 'bwp_is_710' ? 'selected' : ''}"
+                  onclick="window.planexEngine.updateSpaceProp('substrate', 'bwp_is_710')">
+                  BWP Marine Ply (IS 710)
+                </button>
+                <button class="pill-btn ${activeSpace.substrate === 'hdhmr' ? 'selected' : ''}"
+                  onclick="window.planexEngine.updateSpaceProp('substrate', 'hdhmr')">
+                  HDHMR (High Density)
+                </button>
+              </div>
+            </div>
+
+            <div class="selector-card">
+              <h4>External Shutter Finish</h4>
+              <div class="option-pills">
+                <button class="pill-btn ${activeSpace.finish === 'matte_acrylic' ? 'selected' : ''}"
+                  onclick="window.planexEngine.updateSpaceProp('finish', 'matte_acrylic')">
+                  Matte Acrylic (Anti-scratch)
+                </button>
+                <button class="pill-btn ${activeSpace.finish === 'veneer_pu' ? 'selected' : ''}"
+                  onclick="window.planexEngine.updateSpaceProp('finish', 'veneer_pu')">
+                  Natural Veneer + PU Polish
+                </button>
+                <button class="pill-btn ${activeSpace.finish === 'laminate_1mm' ? 'selected' : ''}"
+                  onclick="window.planexEngine.updateSpaceProp('finish', 'laminate_1mm')">
+                  1mm High-Pressure Laminate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+    case 5: // Cost & BoQ
+      const boq = this.computeBoQ(activeSpace);
+      return `
+        <div class="stage-view cost-view">
+          <div class="boq-header-row">
+            <div>
+              <h3>Itemized Bill of Quantities (BoQ)</h3>
+              <p>Dynamic estimation based on ${activeSpace.sqft} sq. ft. run & selected finishes</p>
+            </div>
+            <div class="boq-summary-metric">
+              <span>Total Est: ₹${boq.total.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+          <table class="boq-table">
+            <thead>
+              <tr>
+                <th>Scope Line Item</th>
+                <th>Qty / Spec</th>
+                <th>Rate (INR)</th>
+                <th>Wastage (%)</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${boq.items.map(item => `
+                <tr>
+                  <td><strong>${item.name}</strong><br><small>${item.spec}</small></td>
+                  <td>${item.qty} ${item.unit}</td>
+                  <td>₹${item.rate.toLocaleString('en-IN')}</td>
+                  <td>${item.wastage}%</td>
+                  <td>₹${Math.round(item.amount).toLocaleString('en-IN')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+    case 6: // Handover & Execution Pack
+      return `
+        <div class="stage-view handover-view">
+          <div class="handover-checklist">
+            <h3>Milestone Sign-Off & Site Pack</h3>
+            <p>Export engineered cut-lists, panel schedules, and MEP conduit drawings.</p>
+            <div class="deliverables-grid">
+              <div class="pack-card">
+                <span class="file-icon">📋</span>
+                <div>
+                  <strong>Cut-List & Optimization Sheet</strong>
+                  <p>Ready for beam-saw / CNC nesting</p>
+                </div>
+                <button class="btn-dl">Export CSV</button>
+              </div>
+              <div class="pack-card">
+                <span class="file-icon">📐</span>
+                <div>
+                  <strong>GFC Elevation & MEP Markings</strong>
+                  <p>Plumbing & electrical service grid</p>
+                </div>
+                <button class="btn-dl">Export PDF</button>
+              </div>
+              <div class="pack-card">
+                <span class="file-icon">📦</span>
+                <div>
+                  <strong>Hardware Procurement Schedule</strong>
+                  <p>Hinges, tandem boxes, channels list</p>
+                </div>
+                <button class="btn-dl">Export BoQ</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    default:
+      return '';
+  }
+};
+
+PlanexLifecycleEngine.prototype.updateSpaceProp = function(prop, value) {
+  const space = this.state.spaces[this.state.project.activeSpace];
+  space[prop] = value;
+  this.refresh();
+};
+
+PlanexLifecycleEngine.prototype.computeBoQ = function(space) {
+  const isModular = space.buildMethod === 'modular';
+  const sqft = space.sqft;
+
+  const carcassRate = space.substrate === 'bwp_is_710' ? 1450 : 1100;
+  const shutterRate = space.finish === 'matte_acrylic' ? 1200 : space.finish === 'veneer_pu' ? 1800 : 750;
+  const hardwareRate = 650;
+  const wastageFactor = isModular ? 1.05 : 1.15;
+
+  const carcassTotal = sqft * carcassRate * wastageFactor;
+  const shutterTotal = sqft * shutterRate * wastageFactor;
+  const hardwareTotal = sqft * hardwareRate;
+
+  const total = carcassTotal + shutterTotal + hardwareTotal;
+  space.currentEstimate = Math.round(total);
+
+  return {
+    total,
+    items: [
+      { name: 'Carcass Fabrication', spec: `${space.substrate.toUpperCase()} + 0.8mm liner`, qty: sqft, unit: 'sqft', rate: carcassRate, wastage: isModular ? 5 : 15, amount: carcassTotal },
+      { name: 'External Shutters', spec: space.finish.replace('_', ' ').toUpperCase(), qty: sqft, unit: 'sqft', rate: shutterRate, wastage: isModular ? 5 : 15, amount: shutterTotal },
+      { name: 'Functional Hardware', spec: 'Soft-close hinges & under-mount slides', qty: sqft, unit: 'sqft', rate: hardwareRate, wastage: 0, amount: hardwareTotal }
+    ]
+  };
+};
 
 // Global attachment for easy console inspection & rapid wiring
 window.PlanexLifecycleEngine = PlanexLifecycleEngine;
