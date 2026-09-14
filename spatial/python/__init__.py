@@ -19,6 +19,8 @@ from .engines import (
     BOQEngine, BOQSummary, BOQLineItem,
     TakeoffEngine, TakeoffResult,
     IndianErgonomics, BOQCategory, BOQUnit,
+    ParametricCADRunner,
+    LayoutLensExtractor,
 )
 
 __all__ = [
@@ -31,4 +33,6 @@ __all__ = [
     "BOQEngine", "BOQSummary", "BOQLineItem",
     "TakeoffEngine", "TakeoffResult",
     "IndianErgonomics", "BOQCategory", "BOQUnit",
+    "ParametricCADRunner",
+    "LayoutLensExtractor",
 ]
