@@ -239,7 +239,13 @@ class PlanexLifecycleEngine {
             </div>
 
             <!-- DYNAMIC STAGE BODY -->
-            ${this.renderStageBody(activeSpace)}
+            ${this.renderStageBody(activeSpace) || `
+              <div class="canvas-mock">
+                <div class="canvas-placeholder-content">
+                  <span class="room-tag">${activeSpace.name}</span>
+                </div>
+              </div>
+            `}
 
             <!-- STAGE ADVANCE ACTION BAR -->
             <div class="stage-footer">
