@@ -795,3 +795,84 @@
     roomToContract: roomToContract
   };
 });
+
+/* ============================================================
+   PlanX BOQ Engine — Indian-standard BOQ calculator
+============================================================ */
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    define([], factory);
+  } else if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.PlanXBOQ = factory();
+  }
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /**
+   * Calculate a kitchen BOQ from CAD takeoff metrics.
+   * @param {Object} takeoff - { marine_ply_sqm, quartz_counter_sqm, base_length_mm }
+   * @returns {{ items: Array, grandTotalINR: number }}
+   */
+  function calculateKitchenBOQ(takeoff) {
+    var items = [
+      {
+        id: 'ply-carcass',
+        category: 'CARCASS',
+        description: '18mm Marine Grade BWP Plywood (IS 710 certified)',
+        quantity: takeoff.marine_ply_sqm,
+        unit: 'SQM',
+        unitRateINR: 1950,
+        totalINR: Math.round(takeoff.marine_ply_sqm * 1950),
+      },
+      {
+        id: 'shutter-acrylic',
+        category: 'SHUTTERS',
+        description: 'Anti-Scratch Acrylic Finish with 1mm Edge Banding',
+        quantity: Number((takeoff.base_length_mm * 0.74 / 1000).toFixed(2)),
+        unit: 'SQM',
+        unitRateINR: 2600,
+        totalINR: Math.round((takeoff.base_length_mm * 0.74 / 1000) * 2600),
+      },
+      {
+        id: 'countertop-quartz',
+        category: 'COUNTERTOP',
+        description: '20mm Polished Quartz Countertop with Edge Chamfering',
+        quantity: takeoff.quartz_counter_sqm,
+        unit: 'SQM',
+        unitRateINR: 5200,
+        totalINR: Math.round(takeoff.quartz_counter_sqm * 5200),
+      },
+      {
+        id: 'hardware-tandem',
+        category: 'HARDWARE',
+        description: 'Soft-Close Tandem Drawer Channels (1 per 600mm)',
+        quantity: Math.ceil(takeoff.base_length_mm / 600),
+        unit: 'UNITS',
+        unitRateINR: 4200,
+        totalINR: Math.ceil(takeoff.base_length_mm / 600) * 4200,
+      },
+    ];
+
+    var grandTotalINR = items.reduce(function (acc, curr) { return acc + curr.totalINR; }, 0);
+    return { items: items, grandTotalINR: grandTotalINR };
+  }
+
+  /**
+   * Format a number as INR currency string.
+   * e.g. 3670000 → "₹36,70,000"
+   */
+  function formatINR(value) {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  return {
+    calculateKitchenBOQ: calculateKitchenBOQ,
+    formatINR: formatINR
+  };
+});
