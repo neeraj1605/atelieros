@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   root: '.',
   publicDir: 'assets',
+  base: mode === 'production' ? '/atelieros/' : '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -18,4 +19,4 @@ export default defineConfig({
     port: 8080,
     host: true
   }
-});
+}));
