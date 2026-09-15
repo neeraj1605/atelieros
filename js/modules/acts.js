@@ -44,6 +44,19 @@ window.PlanexModules = window.PlanexModules || {};
       b.addEventListener('click', function () {
         const patch = {}; patch[subKey] = b.getAttribute('data-sub');
         store().setUI(patch);
+        // Sync lifecycle engine stage based on act+sub
+        if (window.planexEngine) {
+          const act = container.parentNode ? container.parentNode.getAttribute('data-act') : null;
+          const stage = window.planexEngine.getStageFromActSub(
+            act || patch[subKey] === 'scope' || patch[subKey] === 'costing' ? 'procurement' : 'design',
+            patch[subKey]
+          );
+          window.planexEngine.state.currentStage = stage;
+          if (stage > window.planexEngine.state.maxUnlockedStage) {
+            window.planexEngine.state.maxUnlockedStage = stage;
+          }
+          window.planexEngine.render();
+        }
         window.PlanexApp.renderView();
       });
     });

@@ -92,17 +92,20 @@ class PlanexLifecycleEngine {
           currentEstimate: 480000
         }
       },
-       conflicts: []
-     });
+      conflicts: []
+    };
 
-     this.init();
+    this.init();
    }
 
-   init() {
-     this.syncProjectState();
-     this.runValidationEngine();
-     this.render();
-   }
+    init() {
+      this.syncProjectState();
+      if (window.PlanexStore) {
+        this.bridgeToStore(window.PlanexStore);
+      }
+      this.runValidationEngine();
+      this.render();
+    }
 
    syncProjectState() {
      const proj = this.state.projects.find(p => p.id === this.state.activeProjectId);
@@ -290,6 +293,10 @@ class PlanexLifecycleEngine {
   setBuildMethod(method) {
     const space = this.state.spaces[this.state.project.activeSpace];
     space.buildMethod = method;
+    if (this.store) {
+      this.store.state.project.buildMethod = method;
+      this.store.commit();
+    }
     this.refresh();
   }
 
@@ -298,6 +305,106 @@ class PlanexLifecycleEngine {
     if (conflict && typeof conflict.resolve === 'function') {
       conflict.resolve();
     }
+  }
+
+  /* ---------- Store Bridge (connects to window.PlanexStore) ---------- */
+  bridgeToStore(store) {
+    this.store = store;
+    this.syncFromStore();
+    if (store && typeof store.subscribe === 'function') {
+      store.subscribe(() => this.syncFromStore());
+    }
+  }
+
+  syncFromStore() {
+    if (this.syncing || !this.store) return;
+    this.syncing = true;
+    const S = this.store.state;
+    const activeSpace = this.state.project.activeSpace;
+
+    // Sync project-level data
+    if (S.project) {
+      this.state.project.name = S.project.name || this.state.project.name;
+      this.state.project.pincode = S.project.location ? S.project.location.split(',')[1]?.trim() || S.project.location : this.state.project.pincode;
+      this.state.project.city = S.project.location ? S.project.location.split(',')[0]?.trim() || S.project.location : this.state.project.city;
+      this.state.project.currency = S.project.currency || this.state.project.currency;
+      if (S.project.buildMethod) {
+        this.state.spaces[activeSpace].buildMethod = S.project.buildMethod;
+      }
+      if (typeof S.project.currentEstimate === 'number') {
+        this.state.spaces[activeSpace].currentEstimate = S.project.currentEstimate;
+      }
+    }
+
+    // Sync rooms to spaces
+    if (S.rooms && Array.isArray(S.rooms)) {
+      S.rooms.forEach(room => {
+        const kind = (window.PlanexPlanGenerator && window.PlanexPlanGenerator.kindOf)
+          ? window.PlanexPlanGenerator.kindOf(room.name) : room.kind || 'other';
+        const sqft = Math.round((Number(room.length) || 0) * (Number(room.width) || 0) * 10.7639);
+        if (this.state.spaces[activeSpace]) {
+          this.state.spaces[activeSpace].sqft = sqft || this.state.spaces[activeSpace].sqft;
+        }
+      });
+    }
+
+    // Sync BOQ data to currentEstimate
+    if (S.boq && Array.isArray(S.boq) && this.state.spaces[activeSpace]) {
+      const spaceBoq = S.boq.filter(b => b.room === this.state.spaces[activeSpace].name);
+      const total = spaceBoq.reduce((sum, b) => sum + ((Number(b.qty) || 0) * (Number(b.rate) || 0)), 0);
+      if (total > 0) {
+        this.state.spaces[activeSpace].currentEstimate = total;
+      }
+    }
+
+    this.syncing = false;
+    this.render();
+  }
+
+  writeToStore() {
+    if (!this.store || this.syncing) return;
+    const S = this.store.state;
+    const activeSpace = this.state.project.activeSpace;
+
+    // Write project-level data back
+    if (S.project) {
+      S.project.name = this.state.project.name;
+      S.project.currency = this.state.project.currency;
+      S.project.location = `${this.state.project.city}, ${this.state.project.pincode}`;
+      S.project.buildMethod = this.state.spaces[activeSpace].buildMethod;
+    }
+
+    this.store.commit();
+  }
+
+  /* ---------- Stage mapping for navigation bridge ---------- */
+  setStageFromAct(actKey) {
+    const actToStage = {
+      design: 1,
+      procurement: 3,
+      execution: 5
+    };
+    this.state.currentStage = actToStage[actKey] || 1;
+    if (this.state.currentStage > this.state.maxUnlockedStage) {
+      this.state.maxUnlockedStage = this.state.currentStage;
+    }
+    this.refresh();
+  }
+
+  getStageFromActSub(act, sub) {
+    // Map act+sub to lifecycle stage
+    const map = {
+      'design:spaces': 2,
+      'design:moodboard': 4,
+      'design:docket': 4,
+      'procurement:scope': 2,
+      'procurement:sheets': 4,
+      'procurement:costing': 5,
+      'procurement:quotation': 5,
+      'execution': 6
+    };
+    const key = sub ? act + ':' + sub : act;
+    return map[key] || 1;
   }
 
   advanceStage() {
@@ -655,6 +762,9 @@ PlanexLifecycleEngine.prototype.renderStageBody = function(activeSpace) {
 PlanexLifecycleEngine.prototype.updateSpaceProp = function(prop, value) {
   const space = this.state.spaces[this.state.project.activeSpace];
   space[prop] = value;
+  if (prop === 'buildMethod' && this.store) {
+    this.store.state.project.buildMethod = value;
+  }
   this.refresh();
 };
 

@@ -63,6 +63,10 @@ window.PlanexJourneyRail = (function () {
       b.addEventListener('click', function () {
         const k = b.getAttribute('data-act');
         store().setUI({ view: 'workspace', act: k });
+        // Sync lifecycle engine stage
+        if (window.planexEngine) {
+          window.planexEngine.setStageFromAct(k);
+        }
         if (k === 'execution') window.PlanexApp.navigate('execution');
         else window.PlanexApp.renderView();
       });

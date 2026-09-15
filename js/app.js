@@ -163,7 +163,7 @@
     procurement: { act: 'procurement' }
   };
 
-  function renderView() {
+   function renderView() {
     const S = window.PlanexStore.state;
     const el = document.getElementById('app-view');
     if (!el) return;
@@ -175,12 +175,35 @@
     document.body.classList.toggle('landing', showHome);
     document.documentElement.classList.remove('landing-pre');
 
+    // Show/hide lifecycle engine
+    const lifecycleRoot = document.getElementById('lifecycle-root');
+    if (lifecycleRoot && window.planexEngine) {
+      const isWorkspace = !showHome && !!seen && S.ui && S.ui.view === 'workspace';
+      lifecycleRoot.classList.toggle('lifecycle-hidden', showHome && !isWorkspace);
+      lifecycleRoot.classList.toggle('lifecycle-visible', !showHome && isWorkspace);
+      if (isWorkspace && lifecycleRoot.classList.contains('lifecycle-hidden')) {
+        lifecycleRoot.classList.remove('lifecycle-hidden');
+        lifecycleRoot.classList.add('lifecycle-visible');
+      }
+      if (showHome && lifecycleRoot.classList.contains('lifecycle-visible')) {
+        lifecycleRoot.classList.remove('lifecycle-visible');
+        lifecycleRoot.classList.add('lifecycle-hidden');
+      }
+    }
+
     if (showHome && M.Home) {
       M.Home.render(el);
     } else if (!seen) {
       M.HowItWorks.render(el);
     } else if (S.ui && S.ui.view === 'workspace') {
       const act = S.ui.act || 'design';
+      // Sync lifecycle stage from act/sub
+      if (window.planexEngine) {
+        const stage = window.planexEngine.getStageFromActSub(act, S.ui[act === 'design' ? 'designSub' : act === 'procurement' ? 'procurementSub' : null]);
+        window.planexEngine.state.currentStage = stage;
+        window.planexEngine.runValidationEngine();
+        window.planexEngine.render();
+      }
       const bar = document.createElement('div');
       bar.className = 'workspace-bar';
       bar.innerHTML =
