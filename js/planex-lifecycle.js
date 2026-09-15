@@ -29,6 +29,45 @@ class PlanexLifecycleEngine {
         activeSpace: 'kitchen',
         household: initialData.household || { toddlers: false, seniors: true, wfh: true }
       },
+      // Multi-Project Support
+      projects: initialData.projects || [
+        {
+          id: 'default',
+          name: 'My Home Project',
+          pincode: '400053',
+          city: 'Mumbai',
+          currency: 'INR',
+          activeSpace: 'kitchen',
+          household: { toddlers: false, seniors: true, wfh: true },
+          maxUnlockedStage: 1,
+          currentStage: 1,
+          spaces: {
+            kitchen: {
+              name: 'Modular Kitchen',
+              buildMethod: 'modular',
+              clearanceMm: 820,
+              hasWetZonePlumbing: true,
+              substrate: 'commercial_mr',
+              finish: 'matte_acrylic',
+              sqft: 110,
+              budgetCap: 350000,
+              currentEstimate: 382000
+            },
+            living: {
+              name: 'Living & Dining',
+              buildMethod: 'carpentry',
+              clearanceMm: 950,
+              substrate: 'bwp_is_710',
+              finish: 'veneer_pu',
+              sqft: 220,
+              budgetCap: 500000,
+              currentEstimate: 480000
+            }
+          },
+          conflicts: []
+        }
+      ],
+      activeProjectId: 'default',
       // Architectural & Engineering Data
       spaces: {
         kitchen: {
@@ -53,16 +92,120 @@ class PlanexLifecycleEngine {
           currentEstimate: 480000
         }
       },
-      conflicts: []
-    };
+       conflicts: []
+     });
 
-    this.init();
-  }
+     this.init();
+   }
 
-  init() {
-    this.runValidationEngine();
-    this.render();
-  }
+   init() {
+     this.syncProjectState();
+     this.runValidationEngine();
+     this.render();
+   }
+
+   syncProjectState() {
+     const proj = this.state.projects.find(p => p.id === this.state.activeProjectId);
+     if (proj) {
+       this.state.project = {
+         name: proj.name,
+         pincode: proj.pincode,
+         city: proj.city,
+         currency: proj.currency,
+         activeSpace: proj.activeSpace,
+         household: proj.household
+       };
+       this.state.currentStage = proj.currentStage || 1;
+       this.state.maxUnlockedStage = proj.maxUnlockedStage || 1;
+       this.state.spaces = JSON.parse(JSON.stringify(proj.spaces || {}));
+       this.state.conflicts = proj.conflicts || [];
+     }
+   }
+
+   saveProjectState() {
+     const proj = this.state.projects.find(p => p.id === this.state.activeProjectId);
+     if (proj) {
+       proj.name = this.state.project.name;
+       proj.pincode = this.state.project.pincode;
+       proj.city = this.state.project.city;
+       proj.currency = this.state.project.currency;
+       proj.activeSpace = this.state.project.activeSpace;
+       proj.household = { ...this.state.project.household };
+       proj.maxUnlockedStage = this.state.maxUnlockedStage;
+       proj.currentStage = this.state.currentStage;
+       proj.spaces = JSON.parse(JSON.stringify(this.state.spaces));
+       proj.conflicts = [...this.state.conflicts];
+     }
+   }
+
+   createProject(name) {
+     const newId = 'proj_' + Date.now();
+     this.state.projects.push({
+       id: newId,
+       name: name,
+       pincode: '400053',
+       city: 'Mumbai',
+       currency: 'INR',
+       activeSpace: 'kitchen',
+       household: { toddlers: false, seniors: false, wfh: false },
+       maxUnlockedStage: 1,
+       currentStage: 1,
+       spaces: {
+         kitchen: {
+           name: 'Modular Kitchen',
+           buildMethod: 'modular',
+           clearanceMm: 900,
+           hasWetZonePlumbing: false,
+           substrate: 'commercial_mr',
+           finish: 'matte_acrylic',
+           sqft: 0,
+           budgetCap: 0,
+           currentEstimate: 0
+         },
+         living: {
+           name: 'Living & Dining',
+           buildMethod: 'carpentry',
+           clearanceMm: 950,
+           substrate: 'bwp_is_710',
+           finish: 'veneer_pu',
+           sqft: 0,
+           budgetCap: 0,
+           currentEstimate: 0
+         }
+       },
+       conflicts: []
+     });
+     this.setActiveProject(newId);
+   }
+
+   setActiveProject(projectId) {
+     this.saveProjectState();
+     this.state.activeProjectId = projectId;
+     this.syncProjectState();
+     this.runValidationEngine();
+     this.render();
+   }
+
+   deleteProject(projectId) {
+     if (this.state.projects.length <= 1) return;
+     this.state.projects = this.state.projects.filter(p => p.id !== projectId);
+     if (this.state.activeProjectId === projectId) {
+       this.state.activeProjectId = this.state.projects[0].id;
+       this.syncProjectState();
+     }
+     this.render();
+   }
+
+   renameProject(projectId, newName) {
+     const proj = this.state.projects.find(p => p.id === projectId);
+     if (proj) {
+       proj.name = newName;
+       if (this.state.activeProjectId === projectId) {
+         this.state.project.name = newName;
+       }
+       this.render();
+     }
+   }
 
   // Production-Grade Validation Rules (Indian Context + Ergonomics)
   runValidationEngine() {
@@ -178,6 +321,7 @@ class PlanexLifecycleEngine {
 
   refresh() {
     this.runValidationEngine();
+    this.saveProjectState();
     this.render();
   }
 
@@ -188,15 +332,28 @@ class PlanexLifecycleEngine {
 
     this.container.innerHTML = `
       <div class="planex-app-shell">
-        <!-- TOP STAGE RIBBON -->
-        <header class="planex-topbar">
-          <div class="brand-cluster">
-            <span class="brand-logo">PX</span>
-            <span class="brand-name">Planex AI</span>
-            <span class="location-badge">📍 ${this.state.project.city} (${this.state.project.pincode})</span>
-          </div>
+         <!-- TOP STAGE RIBBON -->
+         <header class="planex-topbar">
+           <div class="brand-cluster">
+             <span class="brand-logo">PX</span>
+             <span class="brand-name">Planex AI</span>
+             <span class="location-badge">📍 ${this.state.project.city} (${this.state.project.pincode})</span>
+           </div>
 
-          <nav class="stepper-ribbon">
+           <div class="project-selector-wrap">
+             <select class="project-select" onchange="window.planexEngine.setActiveProject(this.value)">
+               ${this.state.projects.map(p => `
+                 <option value="${p.id}" ${p.id === this.state.activeProjectId ? 'selected' : ''}>
+                   ${p.name}
+                 </option>
+               `).join('')}
+             </select>
+             <button class="btn-project-add" onclick="window.planexEngine.createProject(prompt('Project name:', 'New Project'))" title="Add project">
+               ＋
+             </button>
+           </div>
+
+           <nav class="stepper-ribbon">
             ${this.STAGES.map(s => {
               const isPassed = s.id < this.state.currentStage;
               const isActive = s.id === this.state.currentStage;
@@ -231,7 +388,7 @@ class PlanexLifecycleEngine {
               </div>
               <div class="space-selector-wrap">
                 <label>Active Space:</label>
-                <select onchange="window.planexEngine.state.project.activeSpace=this.value; window.planexEngine.refresh();">
+                <select onchange="window.planexEngine.state.project.activeSpace=this.value; window.planexEngine.saveProjectState(); window.planexEngine.refresh();">
                   <option value="kitchen" ${this.state.project.activeSpace === 'kitchen' ? 'selected' : ''}>Kitchen</option>
                   <option value="living" ${this.state.project.activeSpace === 'living' ? 'selected' : ''}>Living & Dining</option>
                 </select>

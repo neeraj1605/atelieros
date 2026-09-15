@@ -1531,6 +1531,51 @@ html.landing-pre .view { padding: 0; }
   z-index: 100;
 }
 
+.project-selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-select {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--px-border);
+  background: var(--px-surface-hover);
+  color: var(--px-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.project-select:focus {
+  outline: none;
+  border-color: var(--px-accent);
+}
+
+.btn-project-add {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--px-border);
+  background: var(--px-surface-hover);
+  color: var(--px-muted);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-project-add:hover {
+  background: var(--px-accent);
+  color: white;
+  border-color: var(--px-accent);
+}
+
 .brand-cluster {
   display: flex;
   align-items: center;
