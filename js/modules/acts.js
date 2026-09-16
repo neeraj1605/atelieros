@@ -63,7 +63,8 @@ window.PlanexModules = window.PlanexModules || {};
   }
 
   const DESIGN_SUBS = [
-    { k: 'spaces', label: 'Spaces', mod: 'Spaces' },
+    { k: 'spaces', label: 'Site Details', mod: 'Spaces' },
+    { k: 'brief', label: 'Client Brief', mod: 'ClientBrief' },
     { k: 'moodboard', label: 'Moodboard', mod: 'Moodboard' },
     { k: 'docket', label: 'Dockets', mod: 'DesignDocket' }
   ];

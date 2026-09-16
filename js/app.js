@@ -123,7 +123,7 @@
 
   const LABELS = {
     home: 'Home', dashboard: 'Home', how: 'How it works', design: 'Design', procurement: 'Procurement',
-    execution: 'Execution', project: 'Project', spaces: 'Spaces', scope: 'Scope of Work',
+    execution: 'Execution', project: 'Project', spaces: 'Site Details', brief: 'Client Brief', scope: 'Scope of Work',
     sheets: 'Scope Sheets', moodboard: 'Moodboard', docket: 'Design Dockets', costing: 'Costing & BOQ', quotation: 'Buy'
   };
 
@@ -139,7 +139,8 @@
       case 'scope': return M.Scope;
       case 'sheets': return M.ScopeSheets;
       case 'moodboard': return M.Moodboard;
-      case 'ai': return M.PlanexAI;
+      case 'brief': return M.ClientBrief;
+    case 'ai': return M.PlanexAI;
       case 'docket': return M.DesignDocket;
       case 'costing': return M.Costing;
       case 'quotation': return M.Quotation;
@@ -152,6 +153,7 @@
     dashboard: { act: 'design', designSub: 'spaces' },
     project: { act: 'design', designSub: 'spaces' },
     spaces: { act: 'design', designSub: 'spaces' },
+    brief: { act: 'design', designSub: 'brief' },
     moodboard: { act: 'design', designSub: 'moodboard' },
     docket: { act: 'design', designSub: 'docket' },
     scope: { act: 'procurement', procurementSub: 'scope' },

@@ -395,6 +395,7 @@ class PlanexLifecycleEngine {
     // Map act+sub to lifecycle stage
     const map = {
       'design:spaces': 2,
+      'design:brief': 2,
       'design:moodboard': 4,
       'design:docket': 4,
       'procurement:scope': 2,
