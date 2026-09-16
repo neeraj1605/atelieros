@@ -1,0 +1,11 @@
+# Copy this file to `.dev.vars` for local `wrangler dev`. Never commit `.dev.vars`.
+#
+# Local development Turnstile test credentials (always pass):
+#   site key: 1x00000000000000000000AA
+#   secret:   1x0000000000000000000000000000000AA
+#
+# For production, use real values from the Google AI Studio and Cloudflare dashboards.
+
+GEMINI_API_KEY="your-google-ai-studio-key"
+TURNSTILE_SECRET="your-turnstile-secret"
+SESSION_SIGNING_KEY="a-long-random-string-at-least-32-bytes"
